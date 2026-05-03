@@ -73,8 +73,8 @@ input::placeholder,textarea::placeholder{color:var(--tx4)!important}
 select option{background:var(--card2)}
 
 /* Leaflet */
-.leaflet-container{background:#04030a!important}
-.leaflet-tile{filter:brightness(0.15) saturate(0.1) hue-rotate(260deg)!important}
+.leaflet-container{background:#0d0a1f!important}
+.leaflet-tile{filter:brightness(0.55) saturate(0.4) hue-rotate(220deg) contrast(1.1)!important}
 .leaflet-control-zoom{border:1px solid var(--b2)!important;border-radius:8px!important;overflow:hidden}
 .leaflet-control-zoom a{background:var(--card)!important;border-color:var(--b)!important;color:var(--acc2)!important;width:32px!important;height:32px!important;line-height:32px!important;font-size:16px!important}
 .leaflet-attribution-flag,.leaflet-control-attribution{display:none!important}
@@ -176,7 +176,7 @@ function SpokMap({places,onSelect}) {
   function init(){
     if(mapRef.current||!ref.current||!window.L)return;
     const map=window.L.map(ref.current,{center:[59,14],zoom:5,zoomControl:true,attributionControl:false});
-    window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19}).addTo(map);
+    window.L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",{maxZoom:20,subdomains:"abcd",attribution:""}).addTo(map);
     mapRef.current=map;
     places.filter(p=>p.lat&&p.lng).forEach(p=>{
       const m=window.L.marker([p.lat,p.lng],{icon:mkIcon(p)}).addTo(map).on("click",()=>onSelect(p));
