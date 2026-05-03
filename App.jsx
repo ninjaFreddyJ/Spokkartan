@@ -511,7 +511,13 @@ function PlacePopup({place,isPro,onRead,onClose,onAddRoadtrip,inRoadtrip}) {
 // ── READER ────────────────────────────────────────────────────
 function Reader({place,allPlaces,isPro,onClose,onNavigate,upgrade,roadtrip,setRoadtrip,visited,setVisited,user,onShare}) {
   const locked=!place.free&&!isPro;
-  const hasImg=place.img&&place.img.length>10;
+  // Build gallery: prefer place.images array, fallback to single img
+  const gallery = (Array.isArray(place.images) && place.images.length > 0)
+    ? place.images
+    : (place.img ? [{url:place.img,license:place.img_credit||'',author:place.img_author||'',source_url:''}] : []);
+  const [currentImg,setCurrentImg]=useState(0);
+  const activeImg = gallery[currentImg] || null;
+  const hasImg = !!activeImg;
 
   // Prev / Next navigation
   const idx=allPlaces.findIndex(p=>p.id===place.id);
@@ -550,13 +556,33 @@ function Reader({place,allPlaces,isPro,onClose,onNavigate,upgrade,roadtrip,setRo
       <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
         <div style={{maxWidth:680,margin:"0 auto",paddingBottom:120}}>
 
-          {/* Hero image */}
+          {/* Hero image with gallery */}
           {hasImg?(
-            <div style={{height:220,position:"relative",overflow:"hidden",background:"linear-gradient(135deg,#110828,#0a0517)"}}>
-              <img src={place.img} alt={place.name} style={{width:"100%",height:"100%",objectFit:"cover",opacity:0.65}} onError={e=>e.target.style.display="none"}/>
-              <div style={{position:"absolute",inset:0,background:"linear-gradient(to top,var(--bg) 0%,rgba(7,6,15,0.2) 60%,transparent 100%)"}}/>
-              {place.img_credit&&<div style={{position:"absolute",bottom:6,right:10,fontSize:9,color:"rgba(255,255,255,0.35)"}}>📷 {place.img_author?`${place.img_author} · `:""}{place.img_credit}</div>}
+            <>
+            <div style={{height:240,position:"relative",overflow:"hidden",background:"linear-gradient(135deg,#110828,#0a0517)"}}>
+              <img src={activeImg.url} alt={place.name} loading="lazy" style={{width:"100%",height:"100%",objectFit:"cover",opacity:0.78,transition:"opacity 0.3s"}} onError={e=>e.target.style.display="none"}/>
+              <div style={{position:"absolute",inset:0,background:"linear-gradient(to top,var(--bg) 0%,rgba(7,6,15,0.2) 55%,transparent 100%)"}}/>
+              {(activeImg.author||activeImg.license)&&(
+                <a href={activeImg.source_url||"#"} target="_blank" rel="noreferrer" style={{position:"absolute",bottom:6,right:10,fontSize:9,color:"rgba(255,255,255,0.55)",textDecoration:"none",background:"rgba(0,0,0,0.4)",padding:"2px 7px",borderRadius:4}}>
+                  📷 {activeImg.author?`${activeImg.author} · `:""}{activeImg.license||""}
+                </a>
+              )}
+              {gallery.length>1&&(
+                <div style={{position:"absolute",top:10,right:10,fontSize:10,fontWeight:600,color:"#fff",background:"rgba(0,0,0,0.55)",padding:"3px 8px",borderRadius:10}}>
+                  {currentImg+1}/{gallery.length}
+                </div>
+              )}
             </div>
+            {gallery.length>1&&(
+              <div style={{display:"flex",gap:6,padding:"8px 12px",overflowX:"auto",WebkitOverflowScrolling:"touch",background:"var(--bg)",borderBottom:"1px solid var(--b)"}}>
+                {gallery.map((g,i)=>(
+                  <button key={i} onClick={()=>setCurrentImg(i)} style={{flexShrink:0,width:60,height:44,padding:0,border:`2px solid ${i===currentImg?"#a78bfa":"var(--b)"}`,borderRadius:6,overflow:"hidden",cursor:"pointer",background:"none",transition:"border-color 0.18s"}}>
+                    <img src={g.url} alt="" loading="lazy" style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
+                  </button>
+                ))}
+              </div>
+            )}
+            </>
           ):(
             <div style={{height:100,background:"linear-gradient(135deg,#110828,#0a0517)",display:"flex",alignItems:"center",justifyContent:"center"}}>
               <span style={{fontSize:48,opacity:0.12}}>{TYPE_ICON[place.type]||"👻"}</span>

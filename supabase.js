@@ -39,6 +39,7 @@ function normalizePlace(row) {
     teaser: row.teaser || '',
     description: row.description || '',
     status: row.status || 'published',
+    images: Array.isArray(row.images) ? row.images : [],
   };
 }
 
