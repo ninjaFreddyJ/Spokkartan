@@ -390,11 +390,11 @@ function ProModal({onClose,onSuccess,isPro}) {
   const [method,setMethod]=useState("");
   const [loading,setLoading]=useState(false);
 
-  async function pay(m){
+  function pay(m){
     setMethod(m);setLoading(true);
-    await new Promise(r=>setTimeout(r,1000));
-    setLoading(false);setStep("done");
-    setTimeout(()=>{onSuccess();onClose();},1400);
+    // Redirect to Stripe Payment Link — intro for new users (19kr), full for upgraders
+    const url = isPro ? "https://buy.stripe.com/5kQ3cu12naMk64l8im3oA03" : "https://buy.stripe.com/9B614m3av07GcsJdCG3oA02";
+    setTimeout(()=>{ window.location.href = url; }, 200);
   }
 
   return(
@@ -426,9 +426,9 @@ function ProModal({onClose,onSuccess,isPro}) {
                 </div>
               ))}
             </div>
-            {/* Payment methods */}
+            {/* Payment methods (Stripe Checkout handles Card, Swish, Klarna) */}
             <div style={{display:"flex",flexDirection:"column",gap:10}}>
-              {[["💳","Kortbetalning (Stripe)"],["📱","Swish — 123 456 78"],["🛍️","Klarna — betala om 30 dagar"]].map(([icon,label],i)=>(
+              {[["🔒","Fortsätt till säker betalning →"]].map(([icon,label],i)=>(
                 <button key={i} onClick={()=>pay(label)} disabled={loading} style={{background:"var(--bg3)",border:"1px solid var(--b)",borderRadius:13,padding:"14px 16px",cursor:"pointer",display:"flex",gap:12,alignItems:"center",width:"100%",transition:"border-color 0.18s"}} onTouchStart={e=>e.currentTarget.style.borderColor="#7c3aed"} onTouchEnd={e=>e.currentTarget.style.borderColor="var(--b)"}>
                   <span style={{fontSize:22}}>{loading&&method===label?<Spinner/>:icon}</span>
                   <span style={{fontSize:14,fontWeight:500,color:"var(--tx)"}}>{label}</span>
@@ -785,11 +785,21 @@ function EbookBuilder({allPlaces}) {
 
   function toggle(id){setSelected(s=>s.includes(id)?s.filter(x=>x!==id):canAdd?[...s,id]:s);}
 
-  async function generate(){
+  function generate(){
     if(!email||!email.includes("@")){alert("Ange en giltig e-postadress.");return;}
-    setStep("processing");
-    for(let i=0;i<=100;i+=2){await new Promise(r=>setTimeout(r,35));setProgress(i);}
-    setStep("done");
+    // Build Stripe Payment Link URL with email pre-filled and metadata for fulfillment
+    const baseUrl = n > 20 ? "https://buy.stripe.com/4gM28q4ezbQo1O58im3oA00" : "https://buy.stripe.com/5kQ4gy3avcUsgIZfKO3oA01";
+    const params = new URLSearchParams({
+      prefilled_email: email,
+      client_reference_id: "ebook_" + n + "_" + Date.now(),
+    });
+    // Pass selected place IDs and book metadata so admin can fulfill manually
+    try {
+      sessionStorage.setItem("spokkartan_ebook_pending", JSON.stringify({
+        email, places: selected, title: bookTitle, design: coverDesign, n, ts: Date.now(),
+      }));
+    } catch(e) {}
+    window.location.href = baseUrl + "?" + params.toString();
   }
 
   const chosenDesign=COVER_DESIGNS.find(d=>d.id===coverDesign)||COVER_DESIGNS[0];
@@ -1584,6 +1594,18 @@ export default function App() {
       else if (payload.eventType === 'DELETE') setAllPlaces(prev => prev.filter(p => p.id !== payload.old.id));
     });
     return () => { mounted = false; unsubscribe(); };
+  }, []);
+
+  // ── Hantera ?welcome=pro return från Stripe ───────────────
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('welcome') === 'pro') {
+      setIsPro(true);
+      // Optional: show a thank-you toast/modal here
+      console.log('[Spokkartan] Välkommen som PRO!');
+      // Clean URL
+      window.history.replaceState({}, '', window.location.pathname);
+    }
   }, []);
 
   const [user,setUser]=useState(null);
