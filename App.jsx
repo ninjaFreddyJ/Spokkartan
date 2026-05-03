@@ -1,7 +1,7 @@
 
 // SPÖKKARTAN v7 — Mobile-first, working auth, clean navigation
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { fetchPlaces, subscribeToPlaces, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut as supabaseSignOut, getProfile, onAuthChange, getSession } from "./supabase";
+import { fetchPlaces, subscribeToPlaces, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut as supabaseSignOut, getProfile, onAuthChange, getSession, fetchPartners, createPartner } from "./supabase";
 import { useLang, LANGS } from "./lang";
 
 const LF_CSS = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css";
@@ -1627,6 +1627,221 @@ function CancelSubModal({onClose,onConfirm}) {
 }
 
 
+// ── PARTNERS ─────────────────────────────────────────────────
+const PARTNER_TYPES = [
+  { code: "all", label: "Alla", icon: "🌐" },
+  { code: "hunter", label: "Spökjägare", icon: "🔍" },
+  { code: "medium", label: "Medium", icon: "🔮" },
+  { code: "tarot", label: "Tarot", icon: "🃏" },
+  { code: "tour", label: "Spökvandring", icon: "🚶" },
+  { code: "event", label: "Eventbolag", icon: "🎭" },
+  { code: "hotel", label: "Hemsökt boende", icon: "🏰" },
+  { code: "author", label: "Författare/Pod", icon: "🎙️" },
+];
+
+const TIER_CONFIG = {
+  free:    { label: "Gratis", color: "#6b7280", price: 0 },
+  basic:   { label: "Basic",  color: "#34d399", price: 99 },
+  pro:     { label: "Pro",    color: "#a78bfa", price: 299 },
+  featured:{ label: "Featured", color: "#fbbf24", price: 799 },
+};
+
+function PartnersView({ user, onAuth, onCreate }) {
+  const [partners, setPartners] = useState([]);
+  const [filter, setFilter] = useState("all");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchPartners({ type: filter === "all" ? undefined : filter }).then(p => {
+      setPartners(p);
+      setLoading(false);
+    });
+  }, [filter]);
+
+  // Sort featured first
+  const sorted = useMemo(() => {
+    const order = { featured: 0, pro: 1, basic: 2, free: 3 };
+    return [...partners].sort((a,b) => (order[a.tier]||9) - (order[b.tier]||9));
+  }, [partners]);
+
+  return (
+    <div style={{flex:1,overflowY:"auto",padding:"16px 14px 100px"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,gap:8}}>
+        <h2 style={{fontSize:22,fontWeight:800,color:"var(--tx)"}}>Partners</h2>
+        <Btn ch="✨ Bli partner" v="p" sz="sm" onClick={()=>user?onCreate():onAuth("login")}/>
+      </div>
+      <p style={{fontSize:13,color:"var(--tx3)",marginBottom:14,lineHeight:1.55}}>
+        Hitta spökjägare, medium, spökvandringar, hemsökta hotell och eventbolag. Som partner: nå tusentals besökare per månad.
+      </p>
+
+      {/* Type filter */}
+      <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:8,marginBottom:16,WebkitOverflowScrolling:"touch"}}>
+        {PARTNER_TYPES.map(pt => (
+          <button key={pt.code} onClick={()=>setFilter(pt.code)} style={{flexShrink:0,background:filter===pt.code?"rgba(124,58,237,0.18)":"var(--bg3)",border:`1px solid ${filter===pt.code?"#7c3aed":"var(--b)"}`,borderRadius:18,padding:"6px 12px",fontSize:12,fontWeight:600,color:filter===pt.code?"#a78bfa":"var(--tx2)",cursor:"pointer",display:"flex",gap:5,alignItems:"center"}}>
+            <span>{pt.icon}</span>{pt.label}
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <div style={{textAlign:"center",padding:40,color:"var(--tx3)"}}>Laddar partners…</div>
+      ) : sorted.length === 0 ? (
+        <div style={{textAlign:"center",padding:40,color:"var(--tx3)"}}>
+          <div style={{fontSize:48,marginBottom:10}}>🌟</div>
+          <div style={{fontSize:14,marginBottom:8}}>Inga partners än i denna kategori.</div>
+          <div style={{fontSize:12,marginBottom:16}}>Bli den första — gratis listing under första 6 månaderna.</div>
+          <Btn ch="✨ Bli partner →" v="p" onClick={()=>user?onCreate():onAuth("login")}/>
+        </div>
+      ) : (
+        <div style={{display:"grid",gap:12}}>
+          {sorted.map(p => <PartnerCard key={p.id} p={p}/>)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PartnerCard({ p }) {
+  const cfg = TIER_CONFIG[p.tier] || TIER_CONFIG.free;
+  const typeMeta = PARTNER_TYPES.find(t => t.code === p.type) || PARTNER_TYPES[0];
+  return (
+    <div style={{background:"var(--card)",border:`1px solid ${p.tier==="featured"?"#fbbf24":"var(--b)"}`,borderRadius:14,padding:14,position:"relative",boxShadow:p.tier==="featured"?"0 4px 20px rgba(251,191,36,0.18)":"none"}}>
+      {p.tier === "featured" && (
+        <div style={{position:"absolute",top:-9,left:14,background:"linear-gradient(90deg,#fbbf24,#f59e0b)",fontSize:9,fontWeight:800,color:"#1a0a36",padding:"3px 9px",borderRadius:8,letterSpacing:0.5}}>★ FEATURED</div>
+      )}
+      <div style={{display:"flex",gap:12,alignItems:"flex-start"}}>
+        {p.avatar ? (
+          <img src={p.avatar} alt={p.name} style={{width:54,height:54,borderRadius:12,objectFit:"cover",flexShrink:0}}/>
+        ) : (
+          <div style={{width:54,height:54,borderRadius:12,background:"var(--bg3)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0}}>{typeMeta.icon}</div>
+        )}
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:3}}>
+            <div style={{fontSize:14,fontWeight:700,color:"var(--tx)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</div>
+            {p.verified && <span title="Verifierad" style={{color:"#34d399",fontSize:13}}>✓</span>}
+          </div>
+          <div style={{fontSize:11,color:"var(--tx3)",marginBottom:6,display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+            <span>{typeMeta.icon} {typeMeta.label}</span>
+            {p.regions_covered?.length > 0 && <span>· {p.regions_covered.slice(0,2).join(", ")}</span>}
+            {p.rating && <span>· ⭐ {p.rating} ({p.review_count})</span>}
+          </div>
+          {p.tagline && <div style={{fontSize:12,color:"var(--tx2)",lineHeight:1.55,marginBottom:8}}>{p.tagline}</div>}
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            {p.booking_url && <a href={p.booking_url} target="_blank" rel="noreferrer" style={{fontSize:11,fontWeight:600,color:"#34d399",textDecoration:"none",background:"rgba(52,211,153,0.1)",padding:"4px 10px",borderRadius:8}}>Boka →</a>}
+            {p.instagram && <a href={p.instagram} target="_blank" rel="noreferrer" style={{fontSize:11,color:"var(--tx3)",textDecoration:"none",padding:"4px 8px"}}>📷 IG</a>}
+            {p.website && <a href={p.website} target="_blank" rel="noreferrer" style={{fontSize:11,color:"var(--tx3)",textDecoration:"none",padding:"4px 8px"}}>🔗 Webb</a>}
+            {p.contact_email && <a href={`mailto:${p.contact_email}`} style={{fontSize:11,color:"var(--tx3)",textDecoration:"none",padding:"4px 8px"}}>✉️ Maila</a>}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BecomePartnerModal({ onClose, onSuccess, user }) {
+  const [type, setType] = useState("hunter");
+  const [name, setName] = useState(user?.name || "");
+  const [tagline, setTagline] = useState("");
+  const [bio, setBio] = useState("");
+  const [regions, setRegions] = useState("");
+  const [website, setWebsite] = useState("");
+  const [instagram, setInstagram] = useState("");
+  const [contactEmail, setContactEmail] = useState(user?.email || "");
+  const [bookingUrl, setBookingUrl] = useState("");
+  const [tier, setTier] = useState("free");
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState("");
+
+  async function submit() {
+    if (!name.trim()) { setErr("Namn krävs"); return; }
+    if (!type) { setErr("Välj typ"); return; }
+    setLoading(true); setErr("");
+    try {
+      await createPartner({
+        type, name: name.trim(), tagline: tagline.trim(), bio: bio.trim(),
+        regions_covered: regions.split(",").map(s=>s.trim()).filter(Boolean),
+        website: website.trim(), instagram: instagram.trim(),
+        contact_email: contactEmail.trim(), booking_url: bookingUrl.trim(),
+        tier, status: "pending",
+      });
+      onSuccess();
+    } catch(e) {
+      setErr("Kunde inte spara: " + e.message);
+    } finally { setLoading(false); }
+  }
+
+  const inp = {width:"100%",background:"var(--bg3)",border:"1px solid var(--b)",borderRadius:9,padding:"10px 12px",fontSize:13,color:"var(--tx)",marginBottom:10};
+  const lbl = {fontSize:11,fontWeight:600,color:"var(--tx3)",marginBottom:4,marginTop:4,display:"block"};
+
+  return (
+    <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+      <div className="modal-sheet au" style={{maxHeight:"92vh",overflowY:"auto"}}>
+        <div className="modal-handle"/>
+        <button onClick={onClose} style={{position:"absolute",top:14,right:14,background:"none",border:"none",color:"var(--tx3)",cursor:"pointer",fontSize:22,padding:4}}>✕</button>
+        <h2 style={{fontSize:20,fontWeight:800,color:"var(--tx)",marginBottom:6}}>Bli partner ✨</h2>
+        <p style={{fontSize:12,color:"var(--tx3)",marginBottom:18,lineHeight:1.55}}>
+          Lista din verksamhet på Spökkartan. Gratis grundläggande listing — uppgradera när du är redo.
+        </p>
+
+        <label style={lbl}>Typ av verksamhet</label>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:6,marginBottom:14}}>
+          {PARTNER_TYPES.filter(t=>t.code!=="all").map(pt => (
+            <button key={pt.code} onClick={()=>setType(pt.code)} style={{background:type===pt.code?"rgba(124,58,237,0.18)":"var(--bg3)",border:`1px solid ${type===pt.code?"#7c3aed":"var(--b)"}`,borderRadius:9,padding:"9px 10px",fontSize:12,fontWeight:600,color:type===pt.code?"#a78bfa":"var(--tx2)",cursor:"pointer",display:"flex",gap:6,alignItems:"center"}}>
+              <span>{pt.icon}</span>{pt.label}
+            </button>
+          ))}
+        </div>
+
+        <label style={lbl}>Namn / Företagsnamn</label>
+        <input style={inp} value={name} onChange={e=>setName(e.target.value)} placeholder="t.ex. Stockholm Ghost Walks"/>
+
+        <label style={lbl}>Slogan / Kort beskrivning</label>
+        <input style={inp} value={tagline} onChange={e=>setTagline(e.target.value)} placeholder="t.ex. Sveriges mest spännande nattvandringar"/>
+
+        <label style={lbl}>Längre presentation (valfritt)</label>
+        <textarea style={{...inp,minHeight:70,resize:"vertical"}} value={bio} onChange={e=>setBio(e.target.value)} placeholder="Berätta om din verksamhet, erfarenhet, vad som gör er speciella..."/>
+
+        <label style={lbl}>Regioner (kommaseparerat)</label>
+        <input style={inp} value={regions} onChange={e=>setRegions(e.target.value)} placeholder="Stockholm, Uppsala, Östergötland"/>
+
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:6}}>
+          <div><label style={lbl}>Webb</label><input style={inp} value={website} onChange={e=>setWebsite(e.target.value)} placeholder="https://..."/></div>
+          <div><label style={lbl}>Instagram</label><input style={inp} value={instagram} onChange={e=>setInstagram(e.target.value)} placeholder="@handle"/></div>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:6}}>
+          <div><label style={lbl}>Kontakt-e-post</label><input style={inp} type="email" value={contactEmail} onChange={e=>setContactEmail(e.target.value)} placeholder="info@..."/></div>
+          <div><label style={lbl}>Bokningslänk</label><input style={inp} value={bookingUrl} onChange={e=>setBookingUrl(e.target.value)} placeholder="https://..."/></div>
+        </div>
+
+        <label style={lbl}>Välj paket</label>
+        <div style={{display:"grid",gap:8,marginBottom:14}}>
+          {[["free","Gratis","Listas i sökresultat"],["basic","Basic 99 kr/mån","+ 5 services, foto, kontaktformulär"],["pro","Pro 299 kr/mån","+ Verified-badge, prioriteras i sök"],["featured","Featured 799 kr/mån","+ Förstasidesvisning + cross-promo"]].map(([code,label,desc]) => {
+            const c = TIER_CONFIG[code];
+            return (
+              <button key={code} onClick={()=>setTier(code)} style={{background:tier===code?`${c.color}22`:"var(--bg3)",border:`1px solid ${tier===code?c.color:"var(--b)"}`,borderRadius:10,padding:"10px 12px",cursor:"pointer",textAlign:"left",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
+                <div>
+                  <div style={{fontSize:13,fontWeight:700,color:tier===code?c.color:"var(--tx)"}}>{label}</div>
+                  <div style={{fontSize:11,color:"var(--tx3)",marginTop:2}}>{desc}</div>
+                </div>
+                {tier===code && <span style={{color:c.color,fontSize:18}}>✓</span>}
+              </button>
+            );
+          })}
+        </div>
+        {tier !== "free" && (
+          <div style={{fontSize:11,color:"var(--tx3)",marginBottom:10,padding:"8px 10px",background:"rgba(96,165,250,0.07)",border:"1px solid rgba(96,165,250,0.2)",borderRadius:8}}>
+            ℹ️ Profil skapas som väntar på godkännande. Betalningslänk skickas via e-post efter att Fredrik granskat din ansökan.
+          </div>
+        )}
+
+        {err && <div style={{background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.3)",borderRadius:8,padding:"8px 12px",fontSize:12,color:"#ef4444",marginBottom:10}}>{err}</div>}
+
+        <Btn ch={loading?"Skapar…":"Skicka in ansökan →"} v="p" full onClick={submit}/>
+      </div>
+    </div>
+  );
+}
+
 // ── LANGUAGE PICKER ──────────────────────────────────────────
 function LanguagePicker({ lang, setLang, langs, t }) {
   const [open, setOpen] = useState(false);
@@ -1754,6 +1969,7 @@ export default function App() {
   const [visited,setVisited]=useState([]);
   const [auth,setAuth]=useState(null);
   const [showPro,setShowPro]=useState(false);
+  const [showBecomePartner,setShowBecomePartner]=useState(false);
   const [showNotif,setShowNotif]=useState(false);
   const [notifPrefs,setNotifPrefs]=useState({enabled:false,types:["new_place","new_hotel"],countries:["Sverige","Norge"],placeTypes:["Alla typer"],minScary:0,frequency:"weekly"});
 
@@ -1789,7 +2005,7 @@ export default function App() {
     {id:"map",icon:"👻",label:t("nav_map")},
     {id:"stories",icon:"📖",label:t("nav_stories")},
     {id:"ebook",icon:"✨",label:t("nav_ebook")},
-    {id:"hunters",icon:"🔍",label:t("nav_hunters")},
+    {id:"partners",icon:"🌟",label:"Partners"},
     {id:"shop",icon:"🛒",label:t("nav_shop")},
     ...(user?.role==="ghosthunter"||user?.role==="admin"?[{id:"board",icon:"📋",label:"Anslagstavla"}]:[]),
     ...(user?.role==="admin"?[{id:"admin",icon:"⚙️",label:"Admin"}]:[]),
@@ -1960,6 +2176,7 @@ export default function App() {
 
         {/* HUNTERS */}
         {view==="hunters"&&<HuntersPage user={user} setAuth={setAuth} setView={setView}/>}
+        {view==="partners"&&<PartnersView user={user} onAuth={setAuth} onCreate={()=>user?setShowBecomePartner(true):setAuth("login")}/>}
 
         {/* BOARD */}
         {view==="board"&&(
@@ -2010,6 +2227,7 @@ export default function App() {
 
       {/* PRO MODAL */}
       {showPro&&<ProModal onClose={()=>setShowPro(false)} onSuccess={()=>setIsPro(true)} isPro={isPro}/>}
+      {showBecomePartner&&<BecomePartnerModal user={user} onClose={()=>setShowBecomePartner(false)} onSuccess={()=>{setShowBecomePartner(false); alert("✅ Tack! Din ansökan är inskickad. Vi godkänner inom 24h och skickar bokstavligen e-post.");}}/>}
 
       {/* SHARE MODAL */}
       {shareData&&<ShareMenu title={shareData.title} url={shareData.url} onClose={()=>setShareData(null)}/>}

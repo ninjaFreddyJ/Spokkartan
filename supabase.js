@@ -125,4 +125,45 @@ export async function getSession() {
   return session;
 }
 
+
+// ── PARTNERS ────────────────────────────────────────────────
+
+export async function fetchPartners({ type, tier } = {}) {
+  let q = supabase.from('partners').select('*').eq('status','live');
+  if (type) q = q.eq('type', type);
+  if (tier) q = q.eq('tier', tier);
+  // Featured first, then newest
+  q = q.order('tier', { ascending: false }).order('created_at', { ascending: false });
+  const { data, error } = await q;
+  if (error) { console.error('[Spokkartan] fetchPartners:', error.message); return []; }
+  return data || [];
+}
+
+export async function fetchPartner(id) {
+  const { data, error } = await supabase.from('partners').select('*').eq('id', id).maybeSingle();
+  if (error) { console.error(error); return null; }
+  return data;
+}
+
+export async function createPartner(payload) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Logga in först');
+  const row = { ...payload, id: user.id, status: 'pending' };
+  const { data, error } = await supabase.from('partners').upsert(row).select().maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function updatePartner(id, updates) {
+  const { data, error } = await supabase.from('partners').update(updates).eq('id', id).select().maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function fetchPartnerServices(partnerId) {
+  const { data, error } = await supabase.from('partner_services').select('*').eq('partner_id', partnerId).eq('active', true);
+  if (error) { console.error(error); return []; }
+  return data || [];
+}
+
 export default supabase;
