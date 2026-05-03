@@ -7,10 +7,23 @@
   <meta name="description" content="Spökkartan — Sveriges och Nordens största sajt för hemsökta platser. Utforska 222 platser, läs berättelser och boka hemsökta hotell." />
   <title>Spökkartan 👻</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>👻</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body, #root { height: 100%; overflow: hidden; }
-    body { background: #07060f; color: #f0ecff; font-family: system-ui, sans-serif; }
+    body {
+      background: #07060f;
+      color: #f0ecff;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    h1, h2, .gt {
+      font-family: 'Cinzel', 'Inter', serif;
+      letter-spacing: -0.01em;
+    }
     #root { display: flex; flex-direction: column; }
   </style>
 </head>
