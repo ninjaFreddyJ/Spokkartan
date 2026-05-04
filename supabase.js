@@ -166,4 +166,116 @@ export async function fetchPartnerServices(partnerId) {
   return data || [];
 }
 
+// ── PAKET (priser + vad ingår) ─────────────────────────────
+export async function fetchPartnerPackages(partnerId) {
+  const { data, error } = await supabase
+    .from('partner_packages')
+    .select('*')
+    .eq('partner_id', partnerId)
+    .eq('active', true)
+    .order('sort_order', { ascending: true });
+  if (error) { console.error('[Spokkartan] fetchPartnerPackages:', error.message); return []; }
+  return data || [];
+}
+
+export async function upsertPartnerPackage(pkg) {
+  const { data, error } = await supabase.from('partner_packages').upsert(pkg).select().maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function deletePartnerPackage(id) {
+  const { error } = await supabase.from('partner_packages').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// ── FRÅGOR TILL PARTNERS (formulär → admin) ────────────────
+export async function submitPartnerQuestion(payload) {
+  // payload: { partner_id, asker_name, asker_email, asker_phone?, subject?, message, package_id? }
+  const { data: { user } } = await supabase.auth.getUser();
+  const row = { ...payload, user_id: user?.id || null, status: 'new' };
+  const { data, error } = await supabase.from('partner_questions').insert(row).select().maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function fetchPartnerQuestions({ status, partnerId } = {}) {
+  let q = supabase.from('partner_questions').select('*, partner:partners(name,type)').order('created_at', { ascending: false });
+  if (status) q = q.eq('status', status);
+  if (partnerId) q = q.eq('partner_id', partnerId);
+  const { data, error } = await q;
+  if (error) { console.error('[Spokkartan] fetchPartnerQuestions:', error.message); return []; }
+  return data || [];
+}
+
+export async function updatePartnerQuestion(id, updates) {
+  const { data, error } = await supabase.from('partner_questions').update(updates).eq('id', id).select().maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+// ── SPÖKJÄGAR-PROFIL (utökad) ──────────────────────────────
+export async function fetchHunters() {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('is_hunter', true)
+    .order('hunter_tier', { ascending: false })
+    .order('hunter_featured_until', { ascending: false, nullsFirst: false });
+  if (error) { console.error('[Spokkartan] fetchHunters:', error.message); return []; }
+  return data || [];
+}
+
+export async function fetchHunter(id) {
+  const { data, error } = await supabase.from('profiles').select('*').eq('id', id).maybeSingle();
+  if (error) { console.error(error); return null; }
+  return data;
+}
+
+export async function updateHunterProfile(updates) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Logga in först');
+  const { data, error } = await supabase.from('profiles').update(updates).eq('id', user.id).select().maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+// ── BESÖKTA PLATSER (spökjägare) ───────────────────────────
+export async function fetchHunterVisits(hunterId) {
+  const { data, error } = await supabase
+    .from('hunter_visits')
+    .select('*')
+    .eq('hunter_id', hunterId)
+    .order('is_best', { ascending: false })
+    .order('visit_date', { ascending: false, nullsFirst: false });
+  if (error) { console.error('[Spokkartan] fetchHunterVisits:', error.message); return []; }
+  return data || [];
+}
+
+export async function upsertHunterVisit(visit) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Logga in först');
+  const row = { ...visit, hunter_id: user.id };
+  const { data, error } = await supabase.from('hunter_visits').upsert(row).select().maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteHunterVisit(id) {
+  const { error } = await supabase.from('hunter_visits').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// ── SPÖKJÄGAR-BESTÄLLNINGAR (premium / spotlight / artikel) ─
+export async function createHunterOrder({ product, amount, notes }) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Logga in först');
+  const { data, error } = await supabase
+    .from('hunter_orders')
+    .insert({ hunter_id: user.id, product, amount, notes, status: 'pending' })
+    .select().maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
 export default supabase;

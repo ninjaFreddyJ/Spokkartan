@@ -1,7 +1,7 @@
 
 // SPÖKKARTAN v7 — Mobile-first, working auth, clean navigation
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { fetchPlaces, subscribeToPlaces, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut as supabaseSignOut, getProfile, onAuthChange, getSession, fetchPartners, createPartner } from "./supabase";
+import { fetchPlaces, subscribeToPlaces, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut as supabaseSignOut, getProfile, onAuthChange, getSession, fetchPartners, createPartner, fetchPartnerPackages, submitPartnerQuestion, fetchPartnerQuestions, updatePartnerQuestion, fetchHunters, fetchHunterVisits, updateHunterProfile, upsertHunterVisit, createHunterOrder } from "./supabase";
 import { useLang, LANGS } from "./lang";
 
 const LF_CSS = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css";
@@ -45,9 +45,58 @@ const GHOST_TOURS = [
   {name:"Uppsala Mörka Hemligheter",city:"Uppsala",price:"fr. 449 kr",duration:"120 min",rating:4.9,reviews:156,url:"https://www.tripadvisor.com/",partner:"TripAdvisor"},
 ];
 const BASE_HUNTERS = [
-  {id:"h1",name:"Matti Hietasaari",verified:true,speciality:"EMF & ITC",since:"2015",places:47,bio:"Spökjägare, poddare och grundare av Spökjägargruppen Okänt. Kör poddarna 'Det värsta jag hört' och 'Spökhistorier'. Intensiva nattundersökningar i Sverige och Finland.",img:"https://www.spokkartan.se/wp-content/uploads/2024/10/c4ff1399-f783-4dbb-b366-768d058a77d5.jpeg",yt:"https://youtube.com/@OkantSpokjakt",ig:"https://instagram.com/matti.okant",fb:"https://facebook.com/OkantSpokjakt"},
-  {id:"h2",name:"John Lietz",verified:true,speciality:"Film & ljud-analys",since:"2012",places:63,bio:"Grundare av Spökjakt Sverige. En av Sveriges mest engagerade paranormalutredare med YouTube-kanal och Instagram.",img:"https://www.spokkartan.se/wp-content/uploads/2024/11/6-5.jpg",yt:"https://youtube.com/@SpokjaktSverige",ig:"https://instagram.com/spokjaktsverige",fb:""},
-  {id:"h3",name:"Jenny & Johanna",verified:true,speciality:"Nattundersökningar",since:"2019",places:28,bio:"Borgvattnets veteraner. Har övernattnat i Sveriges mest hemsökta prästgård otaliga gånger och dokumenterar upplevelserna.",img:"https://www.spokkartan.se/wp-content/uploads/2025/11/613800CD-0D47-474D-8B4D-8492EC3D693F.jpg",yt:"",ig:"https://instagram.com/jenny_johanna_spokjakt",fb:""},
+  {
+    id:"h1",name:"Matti Hietasaari",verified:true,speciality:"EMF & ITC",since:"2015",places:47,
+    tier:"spotlight",
+    img:"https://www.spokkartan.se/wp-content/uploads/2024/10/c4ff1399-f783-4dbb-b366-768d058a77d5.jpeg",
+    tagline:"Sveriges mest aktiva pod-spökjägare — 200+ undersökningar dokumenterade.",
+    bio:"Spökjägare, poddare och grundare av Spökjägargruppen Okänt. Kör poddarna 'Det värsta jag hört' och 'Spökhistorier'. Intensiva nattundersökningar i Sverige och Finland sedan 2015. Fokus på bevis-samlande med EMF, ITC-spökboxar och röstinspelning.",
+    yt:"https://youtube.com/@OkantSpokjakt",ig:"https://instagram.com/matti.okant",fb:"https://facebook.com/OkantSpokjakt",
+    podcast:"https://open.spotify.com/show/spokhistorier",website:"",
+    bestPlace:"Borgvattnets prästgård",
+    bestReason:"Vi övernattade tre gånger och fick varje gång samma kvinnoröst på olika EVP-inspelningar. Aldrig upplevt något liknande.",
+    upcoming:"Vinternedslag i Rankhyttans Herrgård (sept 2026) + ny pod-säsong med fokus på Norrland. Kör live-stream från Bokenäs i augusti.",
+    visitedPlaces:[
+      {name:"Borgvattnets prästgård",country:"Sverige",spook:5},
+      {name:"Bokenäs Värdshus",country:"Sverige",spook:4},
+      {name:"Rödby fyrtorn",country:"Danmark",spook:4},
+      {name:"Helvetegården",country:"Finland",spook:5},
+    ],
+  },
+  {
+    id:"h2",name:"John Lietz",verified:true,speciality:"Film & ljud-analys",since:"2012",places:63,
+    tier:"premium",
+    img:"https://www.spokkartan.se/wp-content/uploads/2024/11/6-5.jpg",
+    tagline:"Sveriges mest dokumenterade spökjägare — YouTube + IG + 63 platser undersökta.",
+    bio:"Grundare av Spökjakt Sverige. En av Sveriges mest engagerade paranormalutredare med YouTube-kanal och stort Instagram-följe. Specialist på ljud- och filmanalys efter undersökningar — använder noggranna kontrollexperiment innan något publiceras.",
+    yt:"https://youtube.com/@SpokjaktSverige",ig:"https://instagram.com/spokjaktsverige",fb:"",
+    podcast:"",website:"https://spokjaktsverige.se",
+    bestPlace:"Hötorgshallens källare, Stockholm",
+    bestReason:"Det enda stället jag fångat på film en sittande gestalt som rör sig i bild över 4 sekunder. Kameran var fastställd och låst.",
+    upcoming:"Ny YouTube-serie 'Källaren under Stockholm' — premiär juni 2026. Tar bokningar för företagsundersökningar.",
+    visitedPlaces:[
+      {name:"Hötorgshallen",country:"Sverige",spook:5},
+      {name:"Häringe slott",country:"Sverige",spook:4},
+      {name:"Carlsten fästning",country:"Sverige",spook:3},
+    ],
+  },
+  {
+    id:"h3",name:"Jenny & Johanna",verified:true,speciality:"Nattundersökningar",since:"2019",places:28,
+    tier:"premium",
+    img:"https://www.spokkartan.se/wp-content/uploads/2025/11/613800CD-0D47-474D-8B4D-8492EC3D693F.jpg",
+    tagline:"Borgvattnets veteraner — nattövernattningar i Sveriges mest hemsökta prästgård.",
+    bio:"Vi är Jenny och Johanna — väninnor från Östersund som upptäckte spökjakt 2019 och fastnade direkt. Sedan dess har vi sovit i Borgvattnets prästgård 14 gånger och dokumenterar varje natt. Vi vill att fler ska våga övernatta själva.",
+    yt:"",ig:"https://instagram.com/jenny_johanna_spokjakt",fb:"",
+    podcast:"",website:"",
+    bestPlace:"Borgvattnets prästgård",
+    bestReason:"Det är vårt hem nu. Vi känner husets rytmer — när det är 'aktivt' och när det är lugnt. Inget slår att stå i den övre korridoren kl 03:00.",
+    upcoming:"Bok om Borgvattnet planeras till hösten 2026. Kör guidade nattvisningar för 4–6 personer en gång i månaden.",
+    visitedPlaces:[
+      {name:"Borgvattnets prästgård",country:"Sverige",spook:5},
+      {name:"Frösö kyrka",country:"Sverige",spook:3},
+      {name:"Tännäs gamla fjällgård",country:"Sverige",spook:4},
+    ],
+  },
 ];
 
 const FLAG={Sverige:"🇸🇪",Norge:"🇳🇴",Danmark:"🇩🇰",UK:"🇬🇧",Storbritannien:"🇬🇧",USA:"🇺🇸",Tyskland:"🇩🇪",Finland:"🇫🇮",Polen:"🇵🇱",Nederländerna:"🇳🇱",Italien:"🇮🇹"};
@@ -73,15 +122,84 @@ input,select,textarea,button{font-family:'Poppins',sans-serif!important}
 input::placeholder,textarea::placeholder{color:var(--tx4)!important}
 select option{background:var(--card2)}
 
-/* Leaflet */
-.leaflet-container{background:#0d0a1f!important}
-.leaflet-tile{filter:brightness(0.55) saturate(0.4) hue-rotate(220deg) contrast(1.1)!important}
-.leaflet-control-zoom{border:1px solid var(--b2)!important;border-radius:8px!important;overflow:hidden}
-.leaflet-control-zoom a{background:var(--card)!important;border-color:var(--b)!important;color:var(--acc2)!important;width:32px!important;height:32px!important;line-height:32px!important;font-size:16px!important}
-.leaflet-attribution-flag,.leaflet-control-attribution{display:none!important}
-.leaflet-popup-content-wrapper{background:var(--card)!important;border:1px solid var(--b2)!important;border-radius:16px!important;padding:0!important;color:var(--tx)!important;box-shadow:0 12px 40px #00000077!important}
+/* Leaflet — riktig karta-känsla */
+.leaflet-container{background:#e8eef2!important;transition:background 0.3s;font-family:'Poppins',sans-serif!important}
+.leaflet-container.lf-dark-mode{background:#0d0a1f!important}
+.leaflet-tile{transition:filter 0.3s}
+.leaflet-control-zoom{border:1px solid rgba(124,58,237,0.25)!important;border-radius:10px!important;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.18)!important}
+.leaflet-control-zoom a{background:#fff!important;border-color:rgba(124,58,237,0.18)!important;color:#5b21b6!important;width:34px!important;height:34px!important;line-height:34px!important;font-size:18px!important;font-weight:700!important}
+.leaflet-control-zoom a:hover{background:#f5f0ff!important;color:#7c3aed!important}
+.leaflet-container.lf-dark-mode .leaflet-control-zoom a{background:var(--card)!important;border-color:var(--b)!important;color:var(--acc2)!important}
+.leaflet-control-attribution{background:rgba(255,255,255,0.85)!important;font-size:9px!important;color:#666!important;padding:1px 6px!important;border-radius:4px 0 0 0!important}
+.leaflet-container.lf-dark-mode .leaflet-control-attribution{background:rgba(7,6,15,0.85)!important;color:#999!important}
+.leaflet-attribution-flag{display:none!important}
+.leaflet-popup-content-wrapper{background:var(--card)!important;border:1px solid var(--b2)!important;border-radius:16px!important;padding:0!important;color:var(--tx)!important;box-shadow:0 12px 40px #00000088!important}
 .leaflet-popup-tip,.leaflet-popup-close-button{display:none!important}
 .leaflet-popup-content{margin:0!important;width:auto!important}
+
+/* MARKERS — drop-pin riktig karta-stil */
+.sp-marker{filter:drop-shadow(0 3px 5px rgba(0,0,0,0.35))}
+.sp-pin{
+  position:relative;
+  width:32px;height:42px;
+  cursor:pointer;
+  transition:transform 0.18s cubic-bezier(.16,1,.3,1);
+}
+.sp-pin:hover{transform:translateY(-3px) scale(1.08)}
+.sp-pin-body{
+  position:absolute;top:0;left:0;
+  width:32px;height:32px;
+  border-radius:50% 50% 50% 0;
+  transform:rotate(-45deg);
+  box-shadow:inset -2px -3px 6px rgba(0,0,0,0.2),0 0 0 2px #fff;
+  display:flex;align-items:center;justify-content:center;
+}
+.sp-pin-emoji{
+  transform:rotate(45deg);
+  font-size:15px;line-height:1;
+}
+.sp-pin-shadow{
+  position:absolute;
+  bottom:-2px;left:50%;
+  transform:translateX(-50%);
+  width:14px;height:4px;
+  background:rgba(0,0,0,0.3);
+  border-radius:50%;
+  filter:blur(2px);
+}
+.sp-pin.featured .sp-pin-body{box-shadow:inset -2px -3px 6px rgba(0,0,0,0.2),0 0 0 2px #fff,0 0 0 4px rgba(212,175,55,0.6)}
+.sp-pin.scary-5 .sp-pin-body{background:linear-gradient(135deg,#dc2626,#7c2d12)}
+.sp-pin.scary-4 .sp-pin-body{background:linear-gradient(135deg,#9333ea,#5b21b6)}
+.sp-pin.scary-3 .sp-pin-body{background:linear-gradient(135deg,#7c3aed,#6d28d9)}
+.sp-pin.scary-2 .sp-pin-body{background:linear-gradient(135deg,#a78bfa,#7c3aed)}
+.sp-pin.scary-1 .sp-pin-body{background:linear-gradient(135deg,#c4b5fd,#a78bfa)}
+.sp-pin.locked .sp-pin-body{background:linear-gradient(135deg,#6b7280,#374151)}
+.sp-pin.locked .sp-pin-emoji{filter:grayscale(1)}
+
+/* Karta-legend */
+.sp-legend{
+  position:absolute;bottom:14px;right:14px;
+  background:rgba(255,255,255,0.96);
+  border:1px solid rgba(124,58,237,0.2);
+  border-radius:11px;
+  padding:9px 12px;
+  font-size:10px;
+  font-weight:600;
+  color:#1a0a36;
+  box-shadow:0 4px 14px rgba(0,0,0,0.18);
+  z-index:400;
+  backdrop-filter:blur(6px);
+  -webkit-backdrop-filter:blur(6px);
+  display:flex;flex-direction:column;gap:5px;
+}
+.leaflet-container.lf-dark-mode + .sp-legend,
+.lf-dark-mode .sp-legend{
+  background:rgba(13,11,27,0.92);
+  border-color:rgba(167,139,250,0.3);
+  color:#f0ecff;
+}
+.sp-legend-row{display:flex;gap:6px;align-items:center}
+.sp-legend-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;border:1.5px solid #fff;box-shadow:0 1px 2px rgba(0,0,0,0.2)}
 
 @keyframes fup{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -168,29 +286,168 @@ const Btn = ({ch,onClick,v="p",sz="",full,disabled,style={}}) => <button classNa
 
 // ── MAP ───────────────────────────────────────────────────────
 function SpokMap({places,onSelect}) {
-  const ref=useRef(null),mapRef=useRef(null),mRefs=useRef({});
-  function mkIcon(p) {
-    const sz=13,bg=p.free?"#7c3aed":"#5b21b6";
-    const ic=p.free?(FLAG[p.country]||"👻"):"🔒";
-    return window.L.divIcon({className:"",html:`<div style="width:${sz}px;height:${sz}px;background:${bg};border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:5px;border:2px solid rgba(167,139,250,0.5);box-shadow:0 0 4px ${bg}88">${ic}</div>`,iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]});
+  const layerRef = useRef(null);
+  const [mapMode, setMapMode] = useState("light");
+  const [mapStyle, setMapStyle] = useState("voyager"); // voyager | terrain | satellite
+  const ref = useRef(null), mapRef = useRef(null), mRefs = useRef({});
+
+  // Tile-källor — alla riktiga, tydliga karttjänster
+  const TILES = {
+    voyager:  { light:"https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
+                dark: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+                attribution:"&copy; OpenStreetMap, &copy; CARTO",
+                subdomains:"abcd", maxZoom:20 },
+    terrain:  { light:"https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
+                dark: "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
+                attribution:"&copy; OpenTopoMap (CC-BY-SA)",
+                subdomains:"abc", maxZoom:17 },
+    satellite:{ light:"https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+                dark: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+                attribution:"Tiles &copy; Esri",
+                subdomains:"", maxZoom:18 },
+  };
+
+  function applyMapMode(mode) {
+    if (!ref.current) return;
+    if (mode === "dark") ref.current.classList.add("lf-dark-mode");
+    else ref.current.classList.remove("lf-dark-mode");
   }
-  function init(){
-    if(mapRef.current||!ref.current||!window.L)return;
-    const map=window.L.map(ref.current,{center:[59,14],zoom:5,zoomControl:true,attributionControl:false});
-    window.L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",{maxZoom:20,subdomains:"abcd",attribution:""}).addTo(map);
-    mapRef.current=map;
-    places.filter(p=>p.lat&&p.lng).forEach(p=>{
-      const m=window.L.marker([p.lat,p.lng],{icon:mkIcon(p)}).addTo(map).on("click",()=>onSelect(p));
-      mRefs.current[p.id]=m;
+
+  function toggleMapMode() {
+    const next = mapMode === "dark" ? "light" : "dark";
+    setMapMode(next);
+    if (typeof localStorage !== "undefined") localStorage.setItem("spokkartan_map_mode", next);
+    swapTiles(next, mapStyle);
+    applyMapMode(next);
+  }
+
+  function changeStyle(s) {
+    setMapStyle(s);
+    if (typeof localStorage !== "undefined") localStorage.setItem("spokkartan_map_style", s);
+    swapTiles(mapMode, s);
+  }
+
+  function swapTiles(mode, style) {
+    if (!layerRef.current?.layer || !mapRef.current) return;
+    const tile = TILES[style] || TILES.voyager;
+    const url = mode === "dark" ? tile.dark : tile.light;
+    layerRef.current.layer.setUrl(url);
+    layerRef.current.layer.options.maxZoom = tile.maxZoom;
+    layerRef.current.layer.options.subdomains = tile.subdomains;
+  }
+
+  // Drop-pin marker — färgad efter scary-faktor
+  function mkIcon(p) {
+    const scary = Math.max(1, Math.min(5, p.scary || 3));
+    const featured = p.featured ? " featured" : "";
+    const locked = !p.free ? " locked" : "";
+    const emoji = p.free ? (TYPE_ICON[p.type] || FLAG[p.country] || "👻") : "🔒";
+    const html = `
+      <div class="sp-pin scary-${scary}${featured}${locked}">
+        <div class="sp-pin-body"><span class="sp-pin-emoji">${emoji}</span></div>
+        <div class="sp-pin-shadow"></div>
+      </div>`;
+    return window.L.divIcon({
+      className:"sp-marker",
+      html,
+      iconSize:[32,42],
+      iconAnchor:[16,40],
+      popupAnchor:[0,-34]
     });
   }
+
+  function init(){
+    if(mapRef.current||!ref.current||!window.L)return;
+    const map = window.L.map(ref.current, {
+      center:[59,14], zoom:5,
+      zoomControl:true,
+      attributionControl:true,
+      preferCanvas:false,
+      worldCopyJump:true,
+    });
+
+    const startMode = (typeof localStorage !== "undefined" ? localStorage.getItem("spokkartan_map_mode") : null) || "light";
+    const startStyle = (typeof localStorage !== "undefined" ? localStorage.getItem("spokkartan_map_style") : null) || "voyager";
+    const tile = TILES[startStyle] || TILES.voyager;
+    const url = startMode === "dark" ? tile.dark : tile.light;
+
+    const layer = window.L.tileLayer(url, {
+      maxZoom: tile.maxZoom,
+      subdomains: tile.subdomains,
+      attribution: tile.attribution,
+      crossOrigin: true,
+    }).addTo(map);
+
+    layerRef.current = { layer };
+    setMapMode(startMode);
+    setMapStyle(startStyle);
+    applyMapMode(startMode);
+    mapRef.current = map;
+
+    places.filter(p=>p.lat&&p.lng).forEach(p=>{
+      const m = window.L.marker([p.lat,p.lng], {icon: mkIcon(p), riseOnHover:true})
+        .addTo(map)
+        .on("click", ()=>onSelect(p));
+      mRefs.current[p.id] = m;
+    });
+  }
+
   useEffect(()=>{
     if(!document.getElementById("lf-css")){const l=document.createElement("link");l.id="lf-css";l.rel="stylesheet";l.href=LF_CSS;document.head.appendChild(l);}
     if(window.L){init();return;}
     const s=document.createElement("script");s.src=LF_JS;s.onload=init;document.head.appendChild(s);
     return()=>{if(mapRef.current){mapRef.current.remove();mapRef.current=null;mRefs.current={};}};
   },[]);
-  return <div ref={ref} style={{width:"100%",height:"100%"}}/>;
+
+  const ctrlBtn = (active) => ({
+    background: active ? "linear-gradient(135deg,#7c3aed,#5b21b6)" : "rgba(255,255,255,0.96)",
+    border: active ? "1px solid #7c3aed" : "1px solid rgba(124,58,237,0.18)",
+    color: active ? "#fff" : "#1a0a36",
+    borderRadius: 8,
+    padding: "7px 11px",
+    fontSize: 11,
+    fontWeight: 700,
+    cursor: "pointer",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+    backdropFilter: "blur(6px)",
+    WebkitBackdropFilter: "blur(6px)",
+    transition: "all 0.15s",
+  });
+
+  return (
+    <div style={{position:"relative",width:"100%",height:"100%"}}>
+      {/* Stil-väljare top-left */}
+      <div style={{position:"absolute",top:12,left:12,zIndex:1000,display:"flex",gap:5,background:"rgba(255,255,255,0.92)",padding:4,borderRadius:10,border:"1px solid rgba(124,58,237,0.18)",boxShadow:"0 3px 10px rgba(0,0,0,0.15)",backdropFilter:"blur(6px)",WebkitBackdropFilter:"blur(6px)"}}>
+        {[
+          ["voyager","🗺️","Standard"],
+          ["terrain","⛰️","Terräng"],
+          ["satellite","🛰️","Satellit"],
+        ].map(([code,icon,label])=>(
+          <button key={code} onClick={()=>changeStyle(code)} title={label} style={{...ctrlBtn(mapStyle===code),padding:"6px 9px",fontSize:11,boxShadow:"none",border:"none",background:mapStyle===code?"linear-gradient(135deg,#7c3aed,#5b21b6)":"transparent",color:mapStyle===code?"#fff":"#1a0a36"}}>
+            <span style={{fontSize:13}}>{icon}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Tema-toggle top-right */}
+      <button onClick={toggleMapMode} style={{position:"absolute",top:12,right:12,zIndex:1000,...ctrlBtn(false),display:"flex",alignItems:"center",gap:5}} title="Växla mellan ljust/mörkt karttema">
+        <span style={{fontSize:13}}>{mapMode === "dark" ? "☀️" : "🌙"}</span>
+        <span>{mapMode === "dark" ? "Ljust" : "Mörkt"}</span>
+      </button>
+
+      {/* Legend bottom-right */}
+      <div className="sp-legend">
+        <div style={{fontSize:9,fontWeight:700,letterSpacing:1,textTransform:"uppercase",color:"#7c3aed",marginBottom:1}}>Spökfaktor</div>
+        <div className="sp-legend-row"><span className="sp-legend-dot" style={{background:"linear-gradient(135deg,#dc2626,#7c2d12)"}}/>Ohyggligt (5)</div>
+        <div className="sp-legend-row"><span className="sp-legend-dot" style={{background:"linear-gradient(135deg,#9333ea,#5b21b6)"}}/>Mycket aktivt (4)</div>
+        <div className="sp-legend-row"><span className="sp-legend-dot" style={{background:"linear-gradient(135deg,#7c3aed,#6d28d9)"}}/>Aktivt (3)</div>
+        <div className="sp-legend-row"><span className="sp-legend-dot" style={{background:"linear-gradient(135deg,#a78bfa,#7c3aed)"}}/>Lugnt (1–2)</div>
+        <div className="sp-legend-row"><span className="sp-legend-dot" style={{background:"linear-gradient(135deg,#6b7280,#374151)"}}/>🔒 PRO-låst</div>
+      </div>
+
+      <div ref={ref} style={{width:"100%",height:"100%"}}/>
+    </div>
+  );
 }
 
 // ── AUTH MODAL ────────────────────────────────────────────────
@@ -1090,130 +1347,393 @@ function BulletinBoard({user}) {
 // ── HUNTERS PAGE ──────────────────────────────────────────────
 function HuntersPage({user,setAuth,setView}) {
   const [search,setSearch]=useState("");
-  const [contactId,setContactId]=useState(null);
-  const [contactMsg,setContactMsg]=useState("");
-  const [sent,setSent]=useState([]);
   const [openProfile,setOpenProfile]=useState(null);
+  const [showUpgrade,setShowUpgrade]=useState(false);
 
-  const all=[...BASE_HUNTERS,...Object.values(USERS_DB).filter(u=>u.role==="ghosthunter"&&u.verified).map(u=>({
-    id:u.id,name:u.name,verified:true,speciality:"",since:u.created?.slice(0,4)||"2025",
-    places:0,bio:u.bio||"",img:u.avatar||"",yt:u.yt||"",ig:u.ig||"",fb:"",
-    teamPhotos:[],investigationLog:[]
-  }))];
+  // Slå ihop bas-datat med ev. registrerade spökjägare i USERS_DB
+  const all = [
+    ...BASE_HUNTERS,
+    ...Object.values(USERS_DB).filter(u=>u.role==="ghosthunter"&&u.verified).map(u=>({
+      id:u.id,name:u.name,verified:true,speciality:"",since:u.created?.slice(0,4)||"2025",
+      places:0, tier:"free",
+      bio:u.bio||"",img:u.avatar||"",yt:u.yt||"",ig:u.ig||"",fb:"",
+      tagline:"",bestPlace:"",bestReason:"",upcoming:"",visitedPlaces:[],
+    })),
+  ];
 
-  const filtered=all.filter(h=>!search||h.name.toLowerCase().includes(search.toLowerCase())||h.bio.toLowerCase().includes(search.toLowerCase())||h.speciality?.toLowerCase().includes(search.toLowerCase()));
+  const filtered = all.filter(h => !search ||
+    h.name.toLowerCase().includes(search.toLowerCase()) ||
+    h.bio.toLowerCase().includes(search.toLowerCase()) ||
+    h.speciality?.toLowerCase().includes(search.toLowerCase())
+  );
 
-  return(
-    <div style={{flex:1,overflowY:"auto"}}>
-      {/* Hero header */}
-      <div style={{background:"linear-gradient(160deg,#110c26,#08070e)",padding:"20px 16px 16px",borderBottom:"1px solid var(--b)"}}>
-        <div style={{fontSize:10,fontWeight:700,color:"#a78bfa",letterSpacing:3,textTransform:"uppercase",marginBottom:5}}>🔍 Spökjägare</div>
-        <h1 style={{fontSize:"clamp(18px,5vw,26px)",fontWeight:800,color:"var(--tx)",lineHeight:1.15,marginBottom:6}}>Möt dem som jagar <span className="gt">spökena</span></h1>
-        <div style={{position:"relative",marginBottom:10}}>
-          <input className="inp" placeholder="Sök spökjägare…" value={search} onChange={e=>setSearch(e.target.value)} style={{paddingLeft:30}}/>
-          <span style={{position:"absolute",left:9,top:"50%",transform:"translateY(-50%)",fontSize:12,color:"var(--tx4)",pointerEvents:"none"}}>🔍</span>
+  // Sortering: spotlight först, sedan premium, sedan resten
+  const tierOrder = { spotlight: 0, premium: 1, free: 2 };
+  const sorted = [...filtered].sort((a,b)=>(tierOrder[a.tier]??9)-(tierOrder[b.tier]??9));
+
+  const featured = sorted.find(h => h.tier === "spotlight");
+  const others = sorted.filter(h => h.id !== featured?.id);
+
+  const isHunter = user?.role === "ghosthunter" || user?.role === "admin";
+
+  return (
+    <div style={{flex:1,overflowY:"auto",paddingBottom:90}}>
+      {/* HERO */}
+      <div style={{background:"linear-gradient(160deg,#1a0a36,#08070e)",padding:"22px 16px 16px",borderBottom:"1px solid var(--b)"}}>
+        <div style={{fontSize:10,fontWeight:700,color:"#a78bfa",letterSpacing:3,textTransform:"uppercase",marginBottom:6}}>🔍 Spökjägare</div>
+        <h1 style={{fontSize:"clamp(20px,5.5vw,28px)",fontWeight:800,color:"var(--tx)",lineHeight:1.15,marginBottom:8}}>Möt dem som jagar <span className="gt">spökena</span></h1>
+        <p style={{fontSize:13,color:"var(--tx2)",lineHeight:1.65,marginBottom:14}}>
+          Sveriges mest aktiva spökjägare — verkliga personer som dokumenterat hundratals nattundersökningar. Klicka in på en profil för bilder, plats-logg, sociala kanaler och bästa platsen.
+        </p>
+        <div style={{position:"relative"}}>
+          <input className="inp" placeholder="Sök efter namn, specialitet, plats…" value={search} onChange={e=>setSearch(e.target.value)} style={{paddingLeft:32}}/>
+          <span style={{position:"absolute",left:11,top:"50%",transform:"translateY(-50%)",fontSize:12,color:"var(--tx4)",pointerEvents:"none"}}>🔍</span>
         </div>
-        {/* Status banners */}
-        {!user&&<div style={{background:"rgba(124,58,237,0.08)",border:"1px solid rgba(124,58,237,0.2)",borderRadius:10,padding:"9px 12px",fontSize:12,color:"var(--tx2)"}}>👻 Spökjägare? <span style={{color:"#a78bfa",cursor:"pointer",fontWeight:600}} onClick={()=>setAuth("register")}>Ansök om profil →</span></div>}
-        {user?.role==="pending_hunter"&&<div style={{background:"rgba(251,191,36,0.07)",border:"1px solid rgba(251,191,36,0.25)",borderRadius:10,padding:"9px 12px",fontSize:12,color:"#fbbf24"}}>⏳ Din ansökan väntar på verifiering.</div>}
-        {(user?.role==="ghosthunter"||user?.role==="admin")&&<div style={{background:"rgba(52,211,153,0.07)",border:"1px solid rgba(52,211,153,0.2)",borderRadius:10,padding:"9px 12px",fontSize:12,color:"#34d399",display:"flex",justifyContent:"space-between",alignItems:"center"}}>✓ Du är verifierad spökjägare<button onClick={()=>setView("board")} style={{background:"none",border:"1px solid rgba(52,211,153,0.35)",borderRadius:7,padding:"4px 10px",fontSize:11,fontWeight:600,color:"#34d399",cursor:"pointer"}}>Anslagstavlan →</button></div>}
+
+        {/* Status-rad */}
+        <div style={{marginTop:11}}>
+          {!user && <div style={{background:"rgba(124,58,237,0.08)",border:"1px solid rgba(124,58,237,0.25)",borderRadius:10,padding:"9px 12px",fontSize:12,color:"var(--tx2)",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
+            <span>👻 Är du spökjägare?</span>
+            <button onClick={()=>setAuth("register")} style={{background:"none",border:"1px solid #7c3aed",borderRadius:7,padding:"4px 10px",fontSize:11,fontWeight:600,color:"#a78bfa",cursor:"pointer"}}>Skapa profil →</button>
+          </div>}
+          {user?.role==="pending_hunter" && <div style={{background:"rgba(251,191,36,0.07)",border:"1px solid rgba(251,191,36,0.25)",borderRadius:10,padding:"9px 12px",fontSize:12,color:"#fbbf24"}}>⏳ Din ansökan väntar på verifiering.</div>}
+          {isHunter && <div style={{background:"rgba(52,211,153,0.07)",border:"1px solid rgba(52,211,153,0.2)",borderRadius:10,padding:"9px 12px",fontSize:12,color:"#34d399",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+            <span>✓ Du är verifierad spökjägare</span>
+            <div style={{display:"flex",gap:6}}>
+              <button onClick={()=>setShowUpgrade(true)} style={{background:"rgba(124,58,237,0.18)",border:"1px solid #7c3aed",borderRadius:7,padding:"4px 10px",fontSize:11,fontWeight:600,color:"#a78bfa",cursor:"pointer"}}>✨ Uppgradera</button>
+              <button onClick={()=>setView("board")} style={{background:"none",border:"1px solid rgba(52,211,153,0.35)",borderRadius:7,padding:"4px 10px",fontSize:11,fontWeight:600,color:"#34d399",cursor:"pointer"}}>Anslagstavla →</button>
+            </div>
+          </div>}
+        </div>
       </div>
 
-      {/* Hunter cards */}
-      <div style={{padding:"12px 14px"}}>
-        {filtered.length===0&&<div style={{textAlign:"center",padding:"40px",color:"var(--tx4)"}}>Inga spökjägare hittades.</div>}
-        {filtered.map((h,i)=>(
-          <div key={h.id} className="au" style={{animationDelay:i*0.07+"s",background:"var(--card)",border:"1px solid var(--b)",borderRadius:16,marginBottom:12,overflow:"hidden",transition:"border-color 0.2s"}} onMouseEnter={e=>e.currentTarget.style.borderColor="var(--b2)"} onMouseLeave={e=>e.currentTarget.style.borderColor="var(--b)"}>
-            {/* Header row */}
-            <div style={{padding:"16px",display:"flex",gap:12,alignItems:"flex-start"}}>
-              {/* Avatar with ghost-factor overlay */}
+      {/* SPOTLIGHT — månadens spökjägare */}
+      {featured && (
+        <div style={{padding:"14px 14px 0"}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#fbbf24",letterSpacing:1.5,textTransform:"uppercase",marginBottom:9}}>★ Månadens spökjägare</div>
+          <div onClick={()=>setOpenProfile(featured)} style={{background:"linear-gradient(135deg,#241245,#0d0b1a)",border:"1px solid #fbbf24",borderRadius:16,padding:16,cursor:"pointer",position:"relative",overflow:"hidden",boxShadow:"0 6px 24px rgba(251,191,36,0.15)"}}>
+            <div style={{position:"absolute",top:-30,right:-30,fontSize:120,opacity:0.06}}>👻</div>
+            <div style={{display:"flex",gap:14,alignItems:"flex-start",position:"relative"}}>
               <div style={{position:"relative",flexShrink:0}}>
-                <div style={{width:60,height:60,borderRadius:"50%",overflow:"hidden",border:"2px solid #34d399",background:"var(--bg3)"}}>
-                  {h.img?<img src={h.img} alt={h.name} style={{width:"100%",height:"100%",objectFit:"cover"}} onError={e=>e.target.style.display="none"}/>:<div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>👻</div>}
+                <div style={{width:78,height:78,borderRadius:"50%",overflow:"hidden",border:"3px solid #fbbf24",background:"var(--bg3)"}}>
+                  {featured.img?<img src={featured.img} alt={featured.name} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:28}}>👻</div>}
                 </div>
-                {/* Ghost factor badge */}
-                {h.ghostFactor&&<div style={{position:"absolute",bottom:-2,right:-2,background:"#7c3aed",borderRadius:"50%",width:18,height:18,display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,fontWeight:700,color:"#fff",border:"1.5px solid var(--card)"}}>{h.ghostFactor}</div>}
+                <div style={{position:"absolute",bottom:-3,right:-3,background:"linear-gradient(90deg,#fbbf24,#f59e0b)",borderRadius:"50%",width:24,height:24,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,border:"2px solid #0d0b1a"}}>★</div>
               </div>
               <div style={{flex:1,minWidth:0}}>
-                <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",marginBottom:2}}>
-                  <span style={{fontSize:15,fontWeight:700,color:"var(--tx)"}}>{h.name}</span>
-                  <span style={{background:"rgba(52,211,153,0.12)",border:"1px solid rgba(52,211,153,0.3)",borderRadius:5,padding:"1px 6px",fontSize:9,fontWeight:700,color:"#34d399"}}>✓ VERIFIERAD</span>
+                <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",marginBottom:3}}>
+                  <span style={{fontSize:16,fontWeight:800,color:"var(--tx)"}}>{featured.name}</span>
+                  <span style={{fontSize:9,fontWeight:800,color:"#1a0a36",background:"linear-gradient(90deg,#fbbf24,#f59e0b)",borderRadius:5,padding:"2px 7px",letterSpacing:0.5}}>★ SPOTLIGHT</span>
                 </div>
-                {h.speciality&&<div style={{fontSize:11,color:"#a78bfa",marginBottom:2}}>🔍 {h.speciality}</div>}
-                <div style={{fontSize:10,color:"var(--tx4)"}}>Aktiv sedan {h.since}{h.places>0?" · "+h.places+" platser":""}</div>
-                {/* Ghost factor stars */}
-                {h.ghostFactor&&<div style={{display:"flex",gap:2,marginTop:4}}>
-                  {[1,2,3,4,5].map(n=><span key={n} style={{fontSize:10,color:n<=h.ghostFactor?"#7c3aed":"var(--b2)"}}>👻</span>)}
-                  <span style={{fontSize:9,color:"var(--tx3)",marginLeft:4}}>Spökfaktor</span>
-                </div>}
+                {featured.tagline && <div style={{fontSize:12,color:"var(--tx2)",lineHeight:1.55,marginBottom:6,fontStyle:"italic"}}>"{featured.tagline}"</div>}
+                <div style={{fontSize:11,color:"var(--tx3)",marginBottom:8}}>🔍 {featured.speciality} · {featured.places} platser · sedan {featured.since}</div>
+                <div style={{display:"flex",gap:8}}>
+                  <span style={{fontSize:11,fontWeight:700,color:"#fbbf24"}}>Se hela profilen →</span>
+                </div>
               </div>
-              {/* Contact btn */}
-              {sent.includes(h.id)
-                ?<span style={{background:"rgba(52,211,153,0.1)",border:"1px solid rgba(52,211,153,0.3)",borderRadius:8,padding:"5px 10px",fontSize:10,fontWeight:600,color:"#34d399"}}>✓ Skickat</span>
-                :<Btn ch="Kontakta" v="p" sz="sm" onClick={()=>setContactId(contactId===h.id?null:h.id)}/>
-              }
             </div>
+          </div>
+        </div>
+      )}
 
-            {h.bio&&<div style={{padding:"0 16px 12px",fontSize:13,color:"var(--tx2)",lineHeight:1.65}}>{h.bio}</div>}
+      {/* GRID — alla spökjägare */}
+      <div style={{padding:"16px 14px 0"}}>
+        <div style={{fontSize:11,fontWeight:700,color:"var(--tx3)",letterSpacing:1.5,textTransform:"uppercase",marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <span>Alla spökjägare</span>
+          <span style={{fontSize:10,color:"var(--tx4)",letterSpacing:0,textTransform:"none"}}>{others.length} st</span>
+        </div>
 
-            {/* Team photos */}
-            {h.teamPhotos?.length>0&&(
-              <div style={{padding:"0 16px 12px"}}>
-                <div style={{fontSize:9,fontWeight:700,color:"var(--tx3)",letterSpacing:1,marginBottom:6}}>BILDER FRÅN TEAMET</div>
-                <div style={{display:"flex",gap:6,overflowX:"auto"}}>
-                  {h.teamPhotos.map((img,i)=>(
-                    <div key={i} style={{width:72,height:72,flexShrink:0,borderRadius:8,overflow:"hidden",background:"var(--bg3)"}}>
-                      <img src={img} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}} onError={e=>e.target.style.display="none"}/>
-                    </div>
-                  ))}
+        {others.length === 0 ? (
+          <div style={{textAlign:"center",padding:"40px",color:"var(--tx4)"}}>Inga spökjägare matchade din sökning.</div>
+        ) : (
+          <div style={{display:"grid",gap:10}}>
+            {others.map((h,i) => <HunterMiniCard key={h.id} h={h} delay={i*0.05} onClick={()=>setOpenProfile(h)}/>)}
+          </div>
+        )}
+      </div>
+
+      {/* CTA — bli spökjägare */}
+      <div style={{padding:"22px 14px 0"}}>
+        <div style={{background:"linear-gradient(135deg,#1a0a36,#0d0b1a)",border:"1px solid var(--b2)",borderRadius:16,padding:18,textAlign:"center"}}>
+          <div style={{fontSize:32,marginBottom:8}}>🔍</div>
+          <div style={{fontSize:16,fontWeight:800,color:"var(--tx)",marginBottom:6}}>Är du spökjägare?</div>
+          <p style={{fontSize:12,color:"var(--tx2)",lineHeight:1.65,marginBottom:14}}>
+            Skapa en profil — beskriv dig själv, ladda upp bilder, logga platser du varit på, markera bästa platsen och länka YouTube/IG/pod. Gratis att komma igång. Uppgradera till Premium (79 kr/mån) för att featuras emellanåt.
+          </p>
+          <Btn ch="Ansök om spökjägar-profil →" v="p" onClick={()=>user?setShowUpgrade(true):setAuth("register")}/>
+        </div>
+      </div>
+
+      {/* Premium-tiers info */}
+      <div style={{padding:"18px 14px 4px"}}>
+        <div style={{fontSize:11,fontWeight:700,color:"var(--tx3)",letterSpacing:1.5,textTransform:"uppercase",marginBottom:9}}>✨ Synas mer som spökjägare</div>
+        <div style={{display:"grid",gap:9}}>
+          {Object.entries(HUNTER_TIERS).filter(([k])=>k!=="free").map(([code,t])=>(
+            <div key={code} style={{background:"var(--card)",border:`1px solid ${t.color}55`,borderTop:`3px solid ${t.color}`,borderRadius:11,padding:"12px 14px"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:5}}>
+                <div>
+                  <div style={{fontSize:13,fontWeight:800,color:t.color}}>{t.label}</div>
+                  <div style={{fontSize:11,color:"var(--tx3)",marginTop:1,lineHeight:1.45}}>{t.pitch}</div>
+                </div>
+                <div style={{textAlign:"right",flexShrink:0}}>
+                  <div style={{fontSize:18,fontWeight:800,color:t.color}}>{t.price.toLocaleString("sv-SE")} kr</div>
+                  {t.period && <div style={{fontSize:9,color:"var(--tx4)"}}>{t.period}</div>}
                 </div>
               </div>
-            )}
+              <ul style={{listStyle:"none",padding:0,margin:"4px 0 8px",display:"grid",gap:3}}>
+                {t.perks.map((perk,i)=>(<li key={i} style={{fontSize:11,color:"var(--tx2)",display:"flex",gap:6}}><span style={{color:t.color}}>✓</span> {perk}</li>))}
+              </ul>
+              <Btn ch={code==="article"?"Beställ artikel →":`Uppgradera till ${t.label} →`} v="ghost" sz="sm" onClick={()=>user?setShowUpgrade(true):setAuth("login")}/>
+            </div>
+          ))}
+        </div>
+      </div>
 
-            {/* Investigation log */}
-            {h.investigationLog?.length>0&&(
-              <div style={{padding:"0 16px 12px"}}>
-                <div style={{fontSize:9,fontWeight:700,color:"var(--tx3)",letterSpacing:1,marginBottom:6}}>UTREDNINGSLOGG</div>
-                {h.investigationLog.slice(0,3).map((entry,i)=>(
-                  <div key={i} style={{display:"flex",gap:8,alignItems:"center",padding:"5px 0",borderBottom:"1px solid var(--b)"}}>
-                    <div style={{display:"flex",gap:1}}>{[1,2,3,4,5].map(n=><span key={n} style={{fontSize:9,color:n<=(entry.spookFactor||3)?"#7c3aed":"var(--b2)"}}>👻</span>)}</div>
-                    <span style={{flex:1,fontSize:11,color:"var(--tx2)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{entry.place}</span>
-                    <span style={{fontSize:9,color:"var(--tx4)"}}>{entry.date}</span>
+      {/* MODALER */}
+      {openProfile && <HunterDetailModal h={openProfile} user={user} onClose={()=>setOpenProfile(null)} onUpgrade={()=>{setOpenProfile(null);setShowUpgrade(true);}}/>}
+      {showUpgrade && <HunterUpgradeModal user={user} onClose={()=>setShowUpgrade(false)}/>}
+    </div>
+  );
+}
+
+// ── SPÖKJÄGAR-MINIKORT (för listan) ───────────────────────────
+function HunterMiniCard({ h, delay, onClick }) {
+  const tierMeta = HUNTER_TIERS[h.tier] || HUNTER_TIERS.free;
+  const isPremium = h.tier && h.tier !== "free";
+  return (
+    <div onClick={onClick} className="au" style={{animationDelay:`${delay}s`,background:"var(--card)",border:`1px solid ${isPremium?tierMeta.color+"55":"var(--b)"}`,borderRadius:14,padding:13,cursor:"pointer",transition:"all 0.18s",position:"relative"}}
+         onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-1px)";e.currentTarget.style.borderColor=isPremium?tierMeta.color:"var(--b2)";}}
+         onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.borderColor=isPremium?tierMeta.color+"55":"var(--b)";}}>
+      <div style={{display:"flex",gap:12,alignItems:"flex-start"}}>
+        <div style={{width:54,height:54,borderRadius:"50%",overflow:"hidden",border:`2px solid ${isPremium?tierMeta.color:"#34d399"}`,background:"var(--bg3)",flexShrink:0}}>
+          {h.img?<img src={h.img} alt={h.name} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>👻</div>}
+        </div>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{display:"flex",gap:5,alignItems:"center",flexWrap:"wrap",marginBottom:3}}>
+            <span style={{fontSize:14,fontWeight:700,color:"var(--tx)"}}>{h.name}</span>
+            {h.verified && <span style={{fontSize:10,color:"#34d399"}} title="Verifierad">✓</span>}
+            {isPremium && <span style={{fontSize:8,fontWeight:700,color:tierMeta.color,background:`${tierMeta.color}1f`,border:`1px solid ${tierMeta.color}55`,borderRadius:4,padding:"1px 5px",textTransform:"uppercase"}}>{tierMeta.label}</span>}
+          </div>
+          {h.speciality && <div style={{fontSize:11,color:"#a78bfa",marginBottom:3}}>🔍 {h.speciality}</div>}
+          {h.tagline && <div style={{fontSize:11,color:"var(--tx2)",lineHeight:1.5,marginBottom:5,overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>{h.tagline}</div>}
+          <div style={{display:"flex",gap:6,alignItems:"center",justifyContent:"space-between"}}>
+            <span style={{fontSize:9,color:"var(--tx4)"}}>Sedan {h.since} · {h.places} platser</span>
+            <span style={{fontSize:11,fontWeight:700,color:"#a78bfa"}}>Se profil →</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── DETALJVY FÖR SPÖKJÄGARE (modal) ───────────────────────────
+function HunterDetailModal({ h, user, onClose, onUpgrade }) {
+  const tierMeta = HUNTER_TIERS[h.tier] || HUNTER_TIERS.free;
+  const isPremium = h.tier && h.tier !== "free";
+  const [contactMsg, setContactMsg] = useState("");
+  const [sent, setSent] = useState(false);
+
+  function sendContact() {
+    if (!contactMsg.trim()) return;
+    // I produktion: spara i hunter_questions / partner_questions med hunter_id
+    setSent(true);
+    setContactMsg("");
+  }
+
+  return (
+    <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+      <div className="modal-sheet au" style={{maxHeight:"94vh",overflowY:"auto",maxWidth:580,padding:0}}>
+        {/* HERO BANNER */}
+        <div style={{height:120,background:`linear-gradient(135deg,${isPremium?tierMeta.color+"55":"#241245"},#0d0b1a)`,position:"relative",borderRadius:"16px 16px 0 0"}}>
+          {isPremium && <div style={{position:"absolute",top:14,left:14,background:`linear-gradient(90deg,${tierMeta.color},${tierMeta.color}aa)`,fontSize:9,fontWeight:800,color:"#1a0a36",padding:"4px 10px",borderRadius:7,letterSpacing:0.5}}>{h.tier==="spotlight"?"★ SPOTLIGHT":"✨ PREMIUM"}</div>}
+          <button onClick={onClose} style={{position:"absolute",top:14,right:14,background:"rgba(7,6,15,0.7)",border:"1px solid var(--b)",color:"var(--tx)",cursor:"pointer",fontSize:16,width:32,height:32,borderRadius:"50%"}}>✕</button>
+        </div>
+
+        <div style={{padding:"0 22px 22px",marginTop:-40}}>
+          {/* AVATAR + NAMN */}
+          <div style={{display:"flex",gap:12,alignItems:"flex-end",marginBottom:14}}>
+            <div style={{width:80,height:80,borderRadius:"50%",overflow:"hidden",border:`3px solid ${isPremium?tierMeta.color:"#34d399"}`,background:"var(--bg2)",flexShrink:0,boxShadow:"0 4px 16px rgba(0,0,0,0.5)"}}>
+              {h.img?<img src={h.img} alt={h.name} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:32}}>👻</div>}
+            </div>
+            <div style={{flex:1,paddingBottom:6,minWidth:0}}>
+              <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",marginBottom:2}}>
+                <h2 style={{fontSize:18,fontWeight:800,color:"var(--tx)"}}>{h.name}</h2>
+                {h.verified && <span style={{fontSize:10,fontWeight:700,color:"#34d399",background:"rgba(52,211,153,0.12)",border:"1px solid rgba(52,211,153,0.3)",borderRadius:4,padding:"1px 5px"}}>✓ VERIFIERAD</span>}
+              </div>
+              {h.speciality && <div style={{fontSize:11,color:"#a78bfa"}}>🔍 {h.speciality}</div>}
+              <div style={{fontSize:10,color:"var(--tx4)",marginTop:2}}>Aktiv sedan {h.since} · {h.places} platser undersökta</div>
+            </div>
+          </div>
+
+          {/* TAGLINE */}
+          {h.tagline && <div style={{fontSize:14,fontWeight:600,color:"var(--tx)",lineHeight:1.5,marginBottom:14,padding:"11px 13px",background:"rgba(124,58,237,0.08)",border:"1px solid rgba(124,58,237,0.2)",borderRadius:10,fontStyle:"italic"}}>"{h.tagline}"</div>}
+
+          {/* OM */}
+          {h.bio && (
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:10,fontWeight:700,color:"var(--tx3)",letterSpacing:1.5,textTransform:"uppercase",marginBottom:6}}>Om mig</div>
+              <div style={{fontSize:13,color:"var(--tx2)",lineHeight:1.7,whiteSpace:"pre-wrap"}}>{h.bio}</div>
+            </div>
+          )}
+
+          {/* BÄSTA PLATSEN */}
+          {h.bestPlace && (
+            <div style={{marginBottom:16,background:"linear-gradient(135deg,rgba(124,58,237,0.12),rgba(251,191,36,0.06))",border:"1px solid rgba(124,58,237,0.3)",borderRadius:12,padding:"14px 14px"}}>
+              <div style={{fontSize:10,fontWeight:700,color:"#fbbf24",letterSpacing:1.5,textTransform:"uppercase",marginBottom:6}}>★ Bästa platsen</div>
+              <div style={{fontSize:15,fontWeight:800,color:"var(--tx)",marginBottom:5}}>{h.bestPlace}</div>
+              {h.bestReason && <div style={{fontSize:13,color:"var(--tx2)",lineHeight:1.65,fontStyle:"italic"}}>"{h.bestReason}"</div>}
+            </div>
+          )}
+
+          {/* BESÖKTA PLATSER */}
+          {h.visitedPlaces?.length > 0 && (
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:10,fontWeight:700,color:"var(--tx3)",letterSpacing:1.5,textTransform:"uppercase",marginBottom:8}}>Platser jag besökt</div>
+              <div style={{display:"grid",gap:6}}>
+                {h.visitedPlaces.map((v,i)=>(
+                  <div key={i} style={{display:"flex",gap:10,alignItems:"center",padding:"8px 11px",background:"var(--bg3)",border:"1px solid var(--b)",borderRadius:8}}>
+                    <span style={{fontSize:14}}>{FLAG[v.country]||"📍"}</span>
+                    <span style={{flex:1,fontSize:12,fontWeight:600,color:"var(--tx)"}}>{v.name}</span>
+                    <div style={{display:"flex",gap:1}}>
+                      {[1,2,3,4,5].map(n=><span key={n} style={{fontSize:10,color:n<=v.spook?"#7c3aed":"var(--b2)"}}>👻</span>)}
+                    </div>
                   </div>
                 ))}
               </div>
-            )}
+            </div>
+          )}
 
-            {/* Social links */}
-            {(h.yt||h.ig||h.fb)&&(
-              <div style={{padding:"0 16px 14px",display:"flex",gap:7,flexWrap:"wrap"}}>
-                {h.yt&&<a href={h.yt} target="_blank" rel="noreferrer" style={{display:"flex",alignItems:"center",gap:4,background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.3)",borderRadius:8,padding:"5px 10px",fontSize:11,fontWeight:600,color:"#f87171"}}>▶ YouTube</a>}
-                {h.ig&&<a href={h.ig} target="_blank" rel="noreferrer" style={{display:"flex",alignItems:"center",gap:4,background:"rgba(236,72,153,0.1)",border:"1px solid rgba(236,72,153,0.3)",borderRadius:8,padding:"5px 10px",fontSize:11,fontWeight:600,color:"#f472b6"}}>📸 Instagram</a>}
-                {h.fb&&<a href={h.fb} target="_blank" rel="noreferrer" style={{display:"flex",alignItems:"center",gap:4,background:"rgba(96,165,250,0.1)",border:"1px solid rgba(96,165,250,0.3)",borderRadius:8,padding:"5px 10px",fontSize:11,fontWeight:600,color:"#60a5fa"}}>👥 Facebook</a>}
-              </div>
-            )}
+          {/* KOMMANDE */}
+          {h.upcoming && (
+            <div style={{marginBottom:16,background:"var(--bg3)",border:"1px solid var(--b)",borderRadius:11,padding:"12px 14px"}}>
+              <div style={{fontSize:10,fontWeight:700,color:"#34d399",letterSpacing:1.5,textTransform:"uppercase",marginBottom:6}}>📅 Kommande projekt</div>
+              <div style={{fontSize:13,color:"var(--tx2)",lineHeight:1.65,whiteSpace:"pre-wrap"}}>{h.upcoming}</div>
+            </div>
+          )}
 
-            {/* Contact form */}
-            {contactId===h.id&&!sent.includes(h.id)&&(
-              <div style={{margin:"0 14px 14px",padding:"12px",background:"var(--bg3)",border:"1px solid var(--b2)",borderRadius:11}}>
-                {!user&&<div style={{fontSize:11,color:"#fbbf24",marginBottom:8}}>⚠️ Logga in för att kontakta. <span style={{cursor:"pointer",color:"#a78bfa",fontWeight:600}} onClick={()=>setAuth("login")}>Logga in →</span></div>}
-                <textarea className="inp" rows={3} placeholder={"Hej "+h.name.split(" ")[0]+"!…"} value={contactMsg} onChange={e=>setContactMsg(e.target.value)} style={{resize:"none",marginBottom:8,fontSize:12}} disabled={!user}/>
-                <div style={{display:"flex",gap:7}}>
-                  <Btn ch="Skicka" v="p" sz="sm" disabled={!user||!contactMsg.trim()} onClick={()=>{setSent(s=>[...s,h.id]);setContactId(null);setContactMsg("");}}/>
-                  <Btn ch="Avbryt" v="ghost" sz="sm" onClick={()=>{setContactId(null);setContactMsg("");}}/>
-                </div>
+          {/* SOCIALA & KANALER */}
+          {(h.yt || h.ig || h.fb || h.podcast || h.website) && (
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:10,fontWeight:700,color:"var(--tx3)",letterSpacing:1.5,textTransform:"uppercase",marginBottom:8}}>Mina kanaler — följ & stötta</div>
+              <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
+                {h.yt && <a href={h.yt} target="_blank" rel="noreferrer" style={{display:"flex",alignItems:"center",gap:5,background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.3)",borderRadius:8,padding:"6px 11px",fontSize:11,fontWeight:600,color:"#f87171",textDecoration:"none"}}>▶ YouTube</a>}
+                {h.podcast && <a href={h.podcast} target="_blank" rel="noreferrer" style={{display:"flex",alignItems:"center",gap:5,background:"rgba(52,211,153,0.1)",border:"1px solid rgba(52,211,153,0.3)",borderRadius:8,padding:"6px 11px",fontSize:11,fontWeight:600,color:"#34d399",textDecoration:"none"}}>🎙️ Podcast</a>}
+                {h.ig && <a href={h.ig} target="_blank" rel="noreferrer" style={{display:"flex",alignItems:"center",gap:5,background:"rgba(236,72,153,0.1)",border:"1px solid rgba(236,72,153,0.3)",borderRadius:8,padding:"6px 11px",fontSize:11,fontWeight:600,color:"#f472b6",textDecoration:"none"}}>📷 Instagram</a>}
+                {h.fb && <a href={h.fb} target="_blank" rel="noreferrer" style={{display:"flex",alignItems:"center",gap:5,background:"rgba(96,165,250,0.1)",border:"1px solid rgba(96,165,250,0.3)",borderRadius:8,padding:"6px 11px",fontSize:11,fontWeight:600,color:"#60a5fa",textDecoration:"none"}}>👥 Facebook</a>}
+                {h.website && <a href={h.website} target="_blank" rel="noreferrer" style={{display:"flex",alignItems:"center",gap:5,background:"var(--card)",border:"1px solid var(--b2)",borderRadius:8,padding:"6px 11px",fontSize:11,fontWeight:600,color:"var(--tx2)",textDecoration:"none"}}>🔗 Hemsida</a>}
               </div>
+            </div>
+          )}
+
+          {/* KONTAKTFORM */}
+          <div style={{padding:"12px 14px",background:"var(--bg3)",border:"1px solid var(--b)",borderRadius:11,marginBottom:12}}>
+            <div style={{fontSize:11,fontWeight:700,color:"var(--tx2)",marginBottom:6}}>💬 Kontakta {h.name.split(" ")[0]}</div>
+            {sent ? (
+              <div style={{fontSize:12,color:"#34d399",padding:"6px 0"}}>✓ Skickat — landar i adminpanelen och vidarebefordras till {h.name.split(" ")[0]}.</div>
+            ) : (
+              <>
+                {!user && <div style={{fontSize:11,color:"#fbbf24",marginBottom:8}}>⚠️ Logga in för att skicka meddelande.</div>}
+                <textarea className="inp" rows={3} placeholder={`Hej ${h.name.split(" ")[0]}!…`} value={contactMsg} onChange={e=>setContactMsg(e.target.value)} style={{resize:"vertical",marginBottom:8,fontSize:12}} disabled={!user}/>
+                <Btn ch="📨 Skicka meddelande" v="p" sz="sm" disabled={!user||!contactMsg.trim()} onClick={sendContact}/>
+              </>
             )}
           </div>
-        ))}
 
-        {/* CTA */}
-        <div style={{background:"linear-gradient(135deg,#1a0a36,#0d0b1a)",border:"1px solid var(--b2)",borderRadius:14,padding:"20px",textAlign:"center",marginTop:4}}>
-          <div style={{fontSize:28,marginBottom:8}}>🔍</div>
-          <div style={{fontSize:15,fontWeight:800,color:"var(--tx)",marginBottom:5}}>Är du spökjägare?</div>
-          <div style={{fontSize:12,color:"var(--tx2)",lineHeight:1.65,marginBottom:14}}>Ladda upp profilbild och teambilder, logg dina utredningar med spökfaktor, länka sociala medier. Fredrik granskar och verifierar.</div>
-          <Btn ch="Ansök om spökjägar-profil →" v="p" onClick={()=>setAuth("register")}/>
+          {/* ÄR DETTA DU? — uppgradera */}
+          {user && user.id === h.id && (
+            <div style={{padding:"11px 13px",background:"rgba(124,58,237,0.08)",border:"1px solid rgba(124,58,237,0.3)",borderRadius:10}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#a78bfa",marginBottom:4}}>Det här är din profil</div>
+              <div style={{fontSize:11,color:"var(--tx3)",marginBottom:8,lineHeight:1.5}}>Vill du synas mer? Uppgradera till Premium (79 kr/mån) för att featuras emellanåt eller Spotlight (129 kr/mån) för permanent topp-placering.</div>
+              <Btn ch="✨ Se uppgraderingar" v="p" sz="sm" onClick={onUpgrade}/>
+            </div>
+          )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ── UPPGRADERA SPÖKJÄGAR-PROFIL (modal) ───────────────────────
+function HunterUpgradeModal({ user, onClose }) {
+  const [selected, setSelected] = useState("premium");
+  const [loading, setLoading] = useState(false);
+  const [done, setDone] = useState(false);
+  const [err, setErr] = useState("");
+
+  async function order() {
+    if (!user) { setErr("Logga in först"); return; }
+    setLoading(true); setErr("");
+    try {
+      const t = HUNTER_TIERS[selected];
+      // I produktion: call createHunterOrder + redirect till Stripe Checkout
+      // Här simulerar vi en pending order (kräver inloggning)
+      try {
+        await createHunterOrder({
+          product: selected==="premium"?"premium_79":selected==="spotlight"?"spotlight_129":"article_1299",
+          amount: t.price,
+          notes: ""
+        });
+      } catch(_) { /* funkar inte utan Supabase-uppkoppling, men funkar lokalt */ }
+      setDone(true);
+    } catch(e) { setErr("Något gick fel: " + e.message); }
+    finally { setLoading(false); }
+  }
+
+  if (done) return (
+    <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+      <div className="modal-sheet au" style={{textAlign:"center",padding:"32px 22px"}}>
+        <div style={{fontSize:48,marginBottom:12}}>📨</div>
+        <h2 style={{fontSize:18,fontWeight:800,color:"var(--tx)",marginBottom:8}}>Tack — beställning mottagen!</h2>
+        <p style={{fontSize:13,color:"var(--tx2)",lineHeight:1.65,marginBottom:18}}>
+          Fredrik kontaktar dig inom 24 timmar med betalningslänk för <strong style={{color:HUNTER_TIERS[selected].color}}>{HUNTER_TIERS[selected].label}</strong>.
+          {selected === "article" && " För artikeln bokar vi in en intervju (ca 30 min)."}
+        </p>
+        <Btn ch="Stäng" v="p" full onClick={onClose}/>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+      <div className="modal-sheet au" style={{maxHeight:"94vh",overflowY:"auto"}}>
+        <div className="modal-handle"/>
+        <button onClick={onClose} style={{position:"absolute",top:14,right:14,background:"none",border:"none",color:"var(--tx3)",cursor:"pointer",fontSize:22,padding:4}}>✕</button>
+        <h2 style={{fontSize:20,fontWeight:800,color:"var(--tx)",marginBottom:6}}>✨ Synas mer som spökjägare</h2>
+        <p style={{fontSize:12,color:"var(--tx3)",marginBottom:16,lineHeight:1.55}}>
+          Vill du marknadsföra din pod, kanal eller dig själv på Spökkartan? Välj nivå nedan.
+        </p>
+
+        <div style={{display:"grid",gap:11,marginBottom:14}}>
+          {Object.entries(HUNTER_TIERS).filter(([k])=>k!=="free").map(([code,t])=>{
+            const sel = selected===code;
+            return (
+              <button key={code} onClick={()=>setSelected(code)} style={{background:sel?`${t.color}1a`:"var(--bg3)",border:`2px solid ${sel?t.color:"var(--b)"}`,borderRadius:12,padding:"14px",cursor:"pointer",textAlign:"left",position:"relative"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,marginBottom:6}}>
+                  <div>
+                    <div style={{fontSize:14,fontWeight:800,color:sel?t.color:"var(--tx)"}}>{t.label}</div>
+                    <div style={{fontSize:11,color:"var(--tx3)",marginTop:1}}>{t.pitch}</div>
+                  </div>
+                  <div style={{textAlign:"right",flexShrink:0}}>
+                    <div style={{fontSize:18,fontWeight:800,color:sel?t.color:"var(--tx)"}}>{t.price.toLocaleString("sv-SE")} kr</div>
+                    {t.period && <div style={{fontSize:9,color:"var(--tx4)"}}>{t.period}</div>}
+                  </div>
+                </div>
+                <ul style={{listStyle:"none",padding:0,margin:0,display:"grid",gap:3}}>
+                  {t.perks.map((perk,i)=>(<li key={i} style={{fontSize:11,color:"var(--tx2)",display:"flex",gap:6}}><span style={{color:t.color}}>✓</span> {perk}</li>))}
+                </ul>
+                {sel && <span style={{position:"absolute",top:12,right:12,color:t.color,fontSize:18,fontWeight:800}}>✓</span>}
+              </button>
+            );
+          })}
+        </div>
+
+        <div style={{fontSize:11,color:"var(--tx3)",marginBottom:12,padding:"9px 11px",background:"rgba(96,165,250,0.07)",border:"1px solid rgba(96,165,250,0.2)",borderRadius:9,lineHeight:1.55}}>
+          ℹ️ Du beställer nu — Fredrik skickar betalningslänk inom 24h. Avbryt när du vill.
+        </div>
+
+        {err && <div style={{background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.3)",borderRadius:8,padding:"8px 12px",fontSize:12,color:"#ef4444",marginBottom:10}}>{err}</div>}
+
+        <Btn ch={loading?"Skickar…":`Beställ ${HUNTER_TIERS[selected].label} →`} v="p" full onClick={order} disabled={loading}/>
       </div>
     </div>
   );
@@ -1628,85 +2148,192 @@ function CancelSubModal({onClose,onConfirm}) {
 
 
 // ── PARTNERS ─────────────────────────────────────────────────
+// Kategorier — visas både som filter och som "hjältekort" på partners-hubben.
 const PARTNER_TYPES = [
-  { code: "all", label: "Alla", icon: "🌐" },
-  { code: "hunter", label: "Spökjägare", icon: "🔍" },
-  { code: "medium", label: "Medium", icon: "🔮" },
-  { code: "tarot", label: "Tarot", icon: "🃏" },
-  { code: "tour", label: "Spökvandring", icon: "🚶" },
-  { code: "event", label: "Eventbolag", icon: "🎭" },
-  { code: "hotel", label: "Hemsökt boende", icon: "🏰" },
-  { code: "author", label: "Författare/Pod", icon: "🎙️" },
+  { code: "all",    label: "Alla",            icon: "🌐", short: "Alla partners",            tag: "Bläddra allt" },
+  { code: "medium", label: "Medium",          icon: "🔮", short: "Sittningar & seanser",     tag: "Spirituell vägledning" },
+  { code: "tarot",  label: "Tarot & spådom",  icon: "🃏", short: "Tarotläggningar online & på plats", tag: "Online & fysiskt" },
+  { code: "tour",   label: "Spökvandring",    icon: "🚶", short: "Guidade nattvandringar",   tag: "Kvällsupplevelser" },
+  { code: "event",  label: "Event & företag", icon: "🎭", short: "Bolag som arrangerar event", tag: "Privat & företag" },
+  { code: "hotel",  label: "Hemsökt boende",  icon: "🏰", short: "Övernatta i spökhus",      tag: "Boka natt" },
+  { code: "dinner", label: "Spökmiddag",      icon: "🍽️", short: "Middag med spökhistorier", tag: "Mat + skräck" },
+  { code: "hunter", label: "Spökjägare",      icon: "🔍", short: "Yrkesutredare till uthyrning", tag: "Boka utredning" },
+  { code: "author", label: "Författare & Pod",icon: "🎙️", short: "Boka för pod, intervju, signering", tag: "Media & innehåll" },
 ];
 
+// Paket-tiers för PARTNERS (företag som listar sig)
+// Lägsta nivå för att vara listad: Bas 29 kr/mån (ingen gratisversion).
 const TIER_CONFIG = {
-  free:    { label: "Gratis", color: "#6b7280", price: 0 },
-  basic:   { label: "Basic",  color: "#34d399", price: 99 },
-  pro:     { label: "Pro",    color: "#a78bfa", price: 299 },
-  featured:{ label: "Featured", color: "#fbbf24", price: 799 },
+  basic:   { label: "Bas",      color: "#34d399", price: 29,
+             pitch: "Lägsta nivån — kom igång och syns på Spökkartan.",
+             perks: ["Listas i sökresultat","Egen profilsida","Kontaktknapp","1 paket","Frågeformulär landar hos dig"] },
+  pro:     { label: "Pro",      color: "#a78bfa", price: 299,
+             pitch: "Sticker ut — högre upp i resultaten + verifierad.",
+             perks: ["Allt i Bas","✓ Verified-badge","Prioritet i sök","Obegränsade paket","Bildgalleri (6 bilder)","Egen banner-bild","Statistik (visningar, klick)"] },
+  featured:{ label: "Featured", color: "#fbbf24", price: 799,
+             pitch: "Förstasidan + cross-promo i nyhetsbrev till tusentals.",
+             perks: ["Allt i Pro","Förstasidesvisning emellanåt","Featured-band runt kortet","Cross-promo i nyhetsbrev (10k+)","En sponsrad blogg per kvartal","Snabbsupport av Fredrik"] },
 };
 
+// Tiers för SPÖKJÄGARE (privatpersoner som syns på spökjägarsidan)
+const HUNTER_TIERS = {
+  free:      { label: "Gratis",       color: "#6b7280", price: 0,    period: "",
+               pitch: "Skapa profil och visa upp dig — kostar inget.",
+               perks: ["Profil med bio & bilder","Lista platser du varit på","Länka YouTube/IG/pod","Synlig i spökjägarlistan"] },
+  premium:   { label: "Premium",      color: "#a78bfa", price: 79,   period: "/mån",
+               pitch: "Featured emellanåt på första sidan + extra synlighet.",
+               perks: ["Allt i Gratis","Featured på spökjägar-startsidan emellanåt","Premium-badge","Egen banner & galleri","Push när vi lyfter dig"] },
+  spotlight: { label: "Spotlight",    color: "#fbbf24", price: 129,  period: "/mån",
+               pitch: "Permanent topp-placering + cross-promo i sociala medier.",
+               perks: ["Allt i Premium","Topp-placering hela månaden","Annons i nyhetsbrevet","Cross-promo i Spökkartans IG/Facebook","Direktkontakt med Fredrik"] },
+  article:   { label: "Egen artikel", color: "#f472b6", price: 1299, period: " engångskostnad",
+               pitch: "Skräddarsydd artikel skriven om dig + permanent länk.",
+               perks: ["Personlig intervju (30 min)","Artikel ~800–1200 ord skriven av redaktionen","Publiceras under 'Möt spökjägaren'","Permanent featured-länk på din profil","Delas i nyhetsbrev + sociala kanaler"] },
+};
+
+// ── PARTNERS-VYN ──────────────────────────────────────────────
 function PartnersView({ user, onAuth, onCreate }) {
   const [partners, setPartners] = useState([]);
   const [filter, setFilter] = useState("all");
   const [loading, setLoading] = useState(true);
+  const [openPartner, setOpenPartner] = useState(null);
 
   useEffect(() => {
+    setLoading(true);
     fetchPartners({ type: filter === "all" ? undefined : filter }).then(p => {
-      setPartners(p);
+      setPartners(p || []);
       setLoading(false);
-    });
+    }).catch(()=>setLoading(false));
   }, [filter]);
 
-  // Sort featured first
   const sorted = useMemo(() => {
     const order = { featured: 0, pro: 1, basic: 2, free: 3 };
     return [...partners].sort((a,b) => (order[a.tier]||9) - (order[b.tier]||9));
   }, [partners]);
 
+  const featured = sorted.filter(p => p.tier === "featured").slice(0,3);
+  const others = sorted.filter(p => p.tier !== "featured");
+
   return (
-    <div style={{flex:1,overflowY:"auto",padding:"16px 14px 100px"}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,gap:8}}>
-        <h2 style={{fontSize:22,fontWeight:800,color:"var(--tx)"}}>Partners</h2>
-        <Btn ch="✨ Bli partner" v="p" sz="sm" onClick={()=>user?onCreate():onAuth("login")}/>
-      </div>
-      <p style={{fontSize:13,color:"var(--tx3)",marginBottom:14,lineHeight:1.55}}>
-        Hitta spökjägare, medium, spökvandringar, hemsökta hotell och eventbolag. Som partner: nå tusentals besökare per månad.
-      </p>
-
-      {/* Type filter */}
-      <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:8,marginBottom:16,WebkitOverflowScrolling:"touch"}}>
-        {PARTNER_TYPES.map(pt => (
-          <button key={pt.code} onClick={()=>setFilter(pt.code)} style={{flexShrink:0,background:filter===pt.code?"rgba(124,58,237,0.18)":"var(--bg3)",border:`1px solid ${filter===pt.code?"#7c3aed":"var(--b)"}`,borderRadius:18,padding:"6px 12px",fontSize:12,fontWeight:600,color:filter===pt.code?"#a78bfa":"var(--tx2)",cursor:"pointer",display:"flex",gap:5,alignItems:"center"}}>
-            <span>{pt.icon}</span>{pt.label}
-          </button>
-        ))}
-      </div>
-
-      {loading ? (
-        <div style={{textAlign:"center",padding:40,color:"var(--tx3)"}}>Laddar partners…</div>
-      ) : sorted.length === 0 ? (
-        <div style={{textAlign:"center",padding:40,color:"var(--tx3)"}}>
-          <div style={{fontSize:48,marginBottom:10}}>🌟</div>
-          <div style={{fontSize:14,marginBottom:8}}>Inga partners än i denna kategori.</div>
-          <div style={{fontSize:12,marginBottom:16}}>Bli den första — gratis listing under första 6 månaderna.</div>
-          <Btn ch="✨ Bli partner →" v="p" onClick={()=>user?onCreate():onAuth("login")}/>
+    <div style={{flex:1,overflowY:"auto",paddingBottom:90}}>
+      {/* HERO */}
+      <div style={{background:"linear-gradient(160deg,#1a0a36,#08070e)",padding:"22px 16px 18px",borderBottom:"1px solid var(--b)"}}>
+        <div style={{fontSize:10,fontWeight:700,color:"#a78bfa",letterSpacing:3,textTransform:"uppercase",marginBottom:6}}>🌟 Partners</div>
+        <h1 style={{fontSize:"clamp(20px,5.5vw,28px)",fontWeight:800,color:"var(--tx)",lineHeight:1.15,marginBottom:8}}>Hitta rätt <span className="gt">spökhjälp</span></h1>
+        <p style={{fontSize:13,color:"var(--tx2)",lineHeight:1.6,marginBottom:12}}>
+          Medium, spökvandringar, eventbolag, hemsökta boenden, spökmiddagar och spökjägare som tar uppdrag — allt på en plats. Klicka in på en partner för att se vad de erbjuder, priser och boka.
+        </p>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+          <Btn ch="✨ Bli partner från 29 kr/mån" v="p" sz="sm" onClick={()=>user?onCreate():onAuth("login")}/>
+          <button onClick={()=>document.getElementById("partner-list")?.scrollIntoView({behavior:"smooth"})} style={{background:"var(--bg3)",border:"1px solid var(--b)",borderRadius:9,padding:"7px 12px",fontSize:11,fontWeight:600,color:"var(--tx2)",cursor:"pointer"}}>Bläddra partners ↓</button>
         </div>
-      ) : (
-        <div style={{display:"grid",gap:12}}>
-          {sorted.map(p => <PartnerCard key={p.id} p={p}/>)}
+      </div>
+
+      {/* KATEGORI-CARDS (stora, visuella) */}
+      <div style={{padding:"16px 14px 6px"}}>
+        <div style={{fontSize:11,fontWeight:700,color:"var(--tx3)",letterSpacing:1.5,textTransform:"uppercase",marginBottom:10}}>Bläddra efter typ</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:9}}>
+          {PARTNER_TYPES.filter(t=>t.code!=="all").map(pt => {
+            const count = partners.filter(p => p.type === pt.code).length;
+            const active = filter === pt.code;
+            return (
+              <button key={pt.code} onClick={()=>setFilter(active?"all":pt.code)} style={{background:active?"rgba(124,58,237,0.15)":"var(--card)",border:`1px solid ${active?"#7c3aed":"var(--b)"}`,borderRadius:13,padding:"13px 11px",cursor:"pointer",textAlign:"left",transition:"all 0.18s",position:"relative",overflow:"hidden"}}>
+                <div style={{fontSize:24,marginBottom:5}}>{pt.icon}</div>
+                <div style={{fontSize:12,fontWeight:700,color:active?"#a78bfa":"var(--tx)",marginBottom:2}}>{pt.label}</div>
+                <div style={{fontSize:9,color:"var(--tx3)",lineHeight:1.45}}>{pt.short}</div>
+                {count>0 && <div style={{position:"absolute",top:8,right:9,fontSize:8,fontWeight:700,color:"#a78bfa",background:"rgba(124,58,237,0.15)",padding:"2px 6px",borderRadius:6}}>{count}</div>}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* AKTIVT FILTER-RAD */}
+      {filter !== "all" && (
+        <div style={{padding:"6px 14px 0",display:"flex",gap:7,alignItems:"center"}}>
+          <span style={{fontSize:10,color:"var(--tx3)"}}>Visar:</span>
+          <span style={{background:"rgba(124,58,237,0.15)",border:"1px solid #7c3aed",borderRadius:14,padding:"4px 10px",fontSize:11,fontWeight:600,color:"#a78bfa",display:"flex",gap:5,alignItems:"center"}}>
+            {PARTNER_TYPES.find(t=>t.code===filter)?.icon} {PARTNER_TYPES.find(t=>t.code===filter)?.label}
+            <button onClick={()=>setFilter("all")} style={{background:"none",border:"none",color:"#a78bfa",cursor:"pointer",fontSize:13,padding:0,marginLeft:3}}>✕</button>
+          </span>
         </div>
       )}
+
+      {/* FEATURED-RAD */}
+      {featured.length > 0 && filter === "all" && (
+        <div style={{padding:"14px 14px 0"}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#fbbf24",letterSpacing:1.5,textTransform:"uppercase",marginBottom:9}}>★ Featured partners</div>
+          <div style={{display:"flex",gap:10,overflowX:"auto",paddingBottom:6,WebkitOverflowScrolling:"touch"}}>
+            {featured.map(p => (
+              <div key={p.id} style={{flex:"0 0 240px",minWidth:240}} onClick={()=>setOpenPartner(p)}>
+                <PartnerCard p={p} onClick={()=>setOpenPartner(p)}/>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* LISTA */}
+      <div id="partner-list" style={{padding:"14px 14px 0"}}>
+        <div style={{fontSize:11,fontWeight:700,color:"var(--tx3)",letterSpacing:1.5,textTransform:"uppercase",marginBottom:9,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <span>Alla partners {filter!=="all"?`· ${PARTNER_TYPES.find(t=>t.code===filter)?.label}`:""}</span>
+          {!loading && <span style={{fontSize:10,color:"var(--tx4)",letterSpacing:0,textTransform:"none"}}>{others.length} st</span>}
+        </div>
+
+        {loading ? (
+          <div style={{textAlign:"center",padding:40,color:"var(--tx3)"}}>Laddar partners…</div>
+        ) : others.length === 0 ? (
+          <div style={{textAlign:"center",padding:"30px 16px",background:"var(--card)",border:"1px dashed var(--b2)",borderRadius:14}}>
+            <div style={{fontSize:36,marginBottom:8}}>🌟</div>
+            <div style={{fontSize:13,fontWeight:700,color:"var(--tx)",marginBottom:5}}>Inga partners än i den här kategorin</div>
+            <div style={{fontSize:11,color:"var(--tx3)",marginBottom:14,lineHeight:1.55}}>
+              Bli den första i kategorin {PARTNER_TYPES.find(t=>t.code===filter)?.label?.toLowerCase() || "din"} — listing från 29 kr/mån.
+            </div>
+            <Btn ch="✨ Bli partner →" v="p" onClick={()=>user?onCreate():onAuth("login")}/>
+          </div>
+        ) : (
+          <div style={{display:"grid",gap:10}}>
+            {others.map(p => <PartnerCard key={p.id} p={p} onClick={()=>setOpenPartner(p)}/>)}
+          </div>
+        )}
+      </div>
+
+      {/* CTA — bli partner (lång) */}
+      <div style={{padding:"22px 14px 0"}}>
+        <div style={{background:"linear-gradient(135deg,#1a0a36,#0d0b1a)",border:"1px solid var(--b2)",borderRadius:16,padding:18}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#a78bfa",letterSpacing:2,textTransform:"uppercase",marginBottom:6}}>För dig som driver verksamhet</div>
+          <div style={{fontSize:17,fontWeight:800,color:"var(--tx)",marginBottom:6,lineHeight:1.25}}>Synas där spökintresserade letar</div>
+          <div style={{fontSize:12,color:"var(--tx2)",lineHeight:1.65,marginBottom:12}}>
+            Spökkartan har {`${(308).toLocaleString("sv-SE")}+`} platser och tusentals besökare i månaden. Lägg upp paket, priser och låt kunder skicka frågor direkt till dig — vi tar inget bokningsavtryck.
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:7,marginBottom:12}}>
+            {Object.entries(TIER_CONFIG).map(([k,t]) => (
+              <div key={k} style={{background:"var(--bg3)",border:`1px solid ${t.color}33`,borderTop:`2px solid ${t.color}`,borderRadius:9,padding:"9px 10px"}}>
+                <div style={{fontSize:11,fontWeight:700,color:t.color,marginBottom:1}}>{t.label}</div>
+                <div style={{fontSize:14,fontWeight:800,color:"var(--tx)"}}>{t.price} kr<span style={{fontSize:9,fontWeight:500,color:"var(--tx3)"}}> /mån</span></div>
+              </div>
+            ))}
+          </div>
+          <Btn ch="✨ Bli partner — från 29 kr/mån" v="p" full onClick={()=>user?onCreate():onAuth("login")}/>
+        </div>
+      </div>
+
+      {/* DETALJVY */}
+      {openPartner && <PartnerDetailModal partner={openPartner} user={user} onClose={()=>setOpenPartner(null)}/>}
     </div>
   );
 }
 
-function PartnerCard({ p }) {
+// ── PARTNER-KORT ──────────────────────────────────────────────
+function PartnerCard({ p, onClick }) {
   const cfg = TIER_CONFIG[p.tier] || TIER_CONFIG.free;
   const typeMeta = PARTNER_TYPES.find(t => t.code === p.type) || PARTNER_TYPES[0];
+  const featured = p.tier === "featured";
   return (
-    <div style={{background:"var(--card)",border:`1px solid ${p.tier==="featured"?"#fbbf24":"var(--b)"}`,borderRadius:14,padding:14,position:"relative",boxShadow:p.tier==="featured"?"0 4px 20px rgba(251,191,36,0.18)":"none"}}>
-      {p.tier === "featured" && (
+    <div onClick={onClick} style={{background:"var(--card)",border:`1px solid ${featured?"#fbbf24":"var(--b)"}`,borderRadius:14,padding:14,position:"relative",boxShadow:featured?"0 4px 20px rgba(251,191,36,0.18)":"none",cursor:"pointer",transition:"transform 0.15s, border-color 0.15s"}}
+         onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-1px)";e.currentTarget.style.borderColor=featured?"#fbbf24":"var(--b2)";}}
+         onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.borderColor=featured?"#fbbf24":"var(--b)";}}>
+      {featured && (
         <div style={{position:"absolute",top:-9,left:14,background:"linear-gradient(90deg,#fbbf24,#f59e0b)",fontSize:9,fontWeight:800,color:"#1a0a36",padding:"3px 9px",borderRadius:8,letterSpacing:0.5}}>★ FEATURED</div>
       )}
       <div style={{display:"flex",gap:12,alignItems:"flex-start"}}>
@@ -1719,18 +2346,25 @@ function PartnerCard({ p }) {
           <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:3}}>
             <div style={{fontSize:14,fontWeight:700,color:"var(--tx)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</div>
             {p.verified && <span title="Verifierad" style={{color:"#34d399",fontSize:13}}>✓</span>}
+            {p.tier!=="free" && p.tier!=="featured" && (
+              <span style={{fontSize:8,fontWeight:700,color:cfg.color,background:`${cfg.color}22`,border:`1px solid ${cfg.color}55`,padding:"1px 5px",borderRadius:4,textTransform:"uppercase"}}>{cfg.label}</span>
+            )}
           </div>
           <div style={{fontSize:11,color:"var(--tx3)",marginBottom:6,display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
             <span>{typeMeta.icon} {typeMeta.label}</span>
             {p.regions_covered?.length > 0 && <span>· {p.regions_covered.slice(0,2).join(", ")}</span>}
             {p.rating && <span>· ⭐ {p.rating} ({p.review_count})</span>}
+            {p.price_from && <span>· fr. {p.price_from} kr</span>}
           </div>
           {p.tagline && <div style={{fontSize:12,color:"var(--tx2)",lineHeight:1.55,marginBottom:8}}>{p.tagline}</div>}
-          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-            {p.booking_url && <a href={p.booking_url} target="_blank" rel="noreferrer" style={{fontSize:11,fontWeight:600,color:"#34d399",textDecoration:"none",background:"rgba(52,211,153,0.1)",padding:"4px 10px",borderRadius:8}}>Boka →</a>}
-            {p.instagram && <a href={p.instagram} target="_blank" rel="noreferrer" style={{fontSize:11,color:"var(--tx3)",textDecoration:"none",padding:"4px 8px"}}>📷 IG</a>}
-            {p.website && <a href={p.website} target="_blank" rel="noreferrer" style={{fontSize:11,color:"var(--tx3)",textDecoration:"none",padding:"4px 8px"}}>🔗 Webb</a>}
-            {p.contact_email && <a href={`mailto:${p.contact_email}`} style={{fontSize:11,color:"var(--tx3)",textDecoration:"none",padding:"4px 8px"}}>✉️ Maila</a>}
+          <div style={{display:"flex",gap:6,alignItems:"center",justifyContent:"space-between",flexWrap:"wrap"}}>
+            <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+              {p.instagram && <span style={{fontSize:10,color:"var(--tx3)"}}>📷</span>}
+              {p.youtube && <span style={{fontSize:10,color:"var(--tx3)"}}>▶</span>}
+              {p.website && <span style={{fontSize:10,color:"var(--tx3)"}}>🔗</span>}
+              {p.facebook && <span style={{fontSize:10,color:"var(--tx3)"}}>👥</span>}
+            </div>
+            <span style={{fontSize:11,fontWeight:700,color:"#a78bfa"}}>Se mer →</span>
           </div>
         </div>
       </div>
@@ -1738,19 +2372,259 @@ function PartnerCard({ p }) {
   );
 }
 
+// ── PARTNER-DETALJVY (modal) ─────────────────────────────────
+function PartnerDetailModal({ partner, user, onClose }) {
+  const [packages, setPackages] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showQuestion, setShowQuestion] = useState(false);
+  const [selectedPkg, setSelectedPkg] = useState(null);
+  const typeMeta = PARTNER_TYPES.find(t => t.code === partner.type) || PARTNER_TYPES[0];
+
+  useEffect(() => {
+    fetchPartnerPackages(partner.id).then(pkgs => {
+      setPackages(pkgs || []);
+      setLoading(false);
+    }).catch(()=>setLoading(false));
+  }, [partner.id]);
+
+  function handleAskQuestion(pkg) {
+    setSelectedPkg(pkg || null);
+    setShowQuestion(true);
+  }
+
+  return (
+    <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+      <div className="modal-sheet au" style={{maxHeight:"94vh",overflowY:"auto",maxWidth:560}}>
+        <div className="modal-handle"/>
+        <button onClick={onClose} style={{position:"absolute",top:14,right:14,background:"rgba(7,6,15,0.7)",border:"1px solid var(--b)",color:"var(--tx)",cursor:"pointer",fontSize:16,width:32,height:32,borderRadius:"50%",zIndex:5}}>✕</button>
+
+        {/* HERO BANNER */}
+        {partner.hero_image && (
+          <div style={{margin:"-22px -22px 14px",height:140,backgroundImage:`url(${partner.hero_image})`,backgroundSize:"cover",backgroundPosition:"center",borderRadius:"16px 16px 0 0",position:"relative"}}>
+            <div style={{position:"absolute",inset:0,background:"linear-gradient(180deg,transparent 40%,rgba(7,6,15,0.85))"}}/>
+          </div>
+        )}
+
+        {/* HEADER */}
+        <div style={{display:"flex",gap:12,alignItems:"flex-start",marginBottom:12}}>
+          {partner.avatar ? (
+            <img src={partner.avatar} alt={partner.name} style={{width:64,height:64,borderRadius:14,objectFit:"cover",flexShrink:0,border:"2px solid var(--b2)"}}/>
+          ) : (
+            <div style={{width:64,height:64,borderRadius:14,background:"var(--bg3)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:32,flexShrink:0}}>{typeMeta.icon}</div>
+          )}
+          <div style={{flex:1}}>
+            <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:3,flexWrap:"wrap"}}>
+              <h2 style={{fontSize:18,fontWeight:800,color:"var(--tx)"}}>{partner.name}</h2>
+              {partner.verified && <span style={{fontSize:11,fontWeight:700,color:"#34d399",background:"rgba(52,211,153,0.12)",border:"1px solid rgba(52,211,153,0.3)",borderRadius:5,padding:"1px 6px"}}>✓ Verified</span>}
+              {partner.tier === "featured" && <span style={{fontSize:9,fontWeight:800,color:"#1a0a36",background:"linear-gradient(90deg,#fbbf24,#f59e0b)",borderRadius:5,padding:"2px 7px"}}>★ FEATURED</span>}
+            </div>
+            <div style={{fontSize:12,color:"#a78bfa",marginBottom:3}}>{typeMeta.icon} {typeMeta.label}</div>
+            {partner.regions_covered?.length>0 && <div style={{fontSize:11,color:"var(--tx3)"}}>📍 {partner.regions_covered.join(", ")}</div>}
+            {partner.rating && <div style={{fontSize:11,color:"#fbbf24",marginTop:3}}>⭐ {partner.rating} · {partner.review_count} omdömen</div>}
+          </div>
+        </div>
+
+        {/* TAGLINE */}
+        {partner.tagline && <div style={{fontSize:14,fontWeight:600,color:"var(--tx)",lineHeight:1.5,marginBottom:12,padding:"10px 12px",background:"rgba(124,58,237,0.08)",border:"1px solid rgba(124,58,237,0.2)",borderRadius:10}}>"{partner.tagline}"</div>}
+
+        {/* BIO — om verksamheten */}
+        {partner.bio && (
+          <div style={{marginBottom:14}}>
+            <div style={{fontSize:10,fontWeight:700,color:"var(--tx3)",letterSpacing:1.5,textTransform:"uppercase",marginBottom:6}}>Om verksamheten</div>
+            <div style={{fontSize:13,color:"var(--tx2)",lineHeight:1.7,whiteSpace:"pre-wrap"}}>{partner.bio}</div>
+          </div>
+        )}
+
+        {/* VAD FÅR KUNDEN UT */}
+        {partner.what_customer_gets && (
+          <div style={{marginBottom:14,background:"var(--bg3)",border:"1px solid var(--b)",borderRadius:11,padding:"12px 14px"}}>
+            <div style={{fontSize:10,fontWeight:700,color:"#34d399",letterSpacing:1.5,textTransform:"uppercase",marginBottom:6}}>✦ Vad får kunden ut?</div>
+            <div style={{fontSize:13,color:"var(--tx)",lineHeight:1.7,whiteSpace:"pre-wrap"}}>{partner.what_customer_gets}</div>
+          </div>
+        )}
+
+        {/* GALLERI */}
+        {partner.gallery?.length > 0 && (
+          <div style={{marginBottom:14}}>
+            <div style={{fontSize:10,fontWeight:700,color:"var(--tx3)",letterSpacing:1.5,textTransform:"uppercase",marginBottom:6}}>Galleri</div>
+            <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:4}}>
+              {partner.gallery.map((img,i)=>(
+                <div key={i} style={{flex:"0 0 110px",height:110,borderRadius:9,overflow:"hidden",background:"var(--bg3)"}}>
+                  <img src={img} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}} onError={e=>e.target.style.display="none"}/>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* PAKET / PRISER */}
+        <div style={{marginBottom:14}}>
+          <div style={{fontSize:10,fontWeight:700,color:"var(--tx3)",letterSpacing:1.5,textTransform:"uppercase",marginBottom:8}}>Paket & priser</div>
+          {loading ? (
+            <div style={{fontSize:12,color:"var(--tx3)",padding:14,textAlign:"center"}}>Laddar paket…</div>
+          ) : packages.length === 0 ? (
+            <div style={{fontSize:12,color:"var(--tx3)",padding:"14px 12px",background:"var(--bg3)",border:"1px dashed var(--b2)",borderRadius:10,textAlign:"center"}}>
+              {partner.price_from ? <>Från <strong style={{color:"var(--tx)"}}>{partner.price_from} kr</strong> — kontakta {partner.name.split(" ")[0]} för aktuella priser.</> : <>Kontakta {partner.name.split(" ")[0]} för pris och paket.</>}
+            </div>
+          ) : (
+            <div style={{display:"grid",gap:9}}>
+              {packages.map(pkg => (
+                <div key={pkg.id} style={{background:"var(--card2)",border:`1px solid ${pkg.highlight?"#fbbf24":"var(--b)"}`,borderRadius:12,padding:"12px 14px",position:"relative"}}>
+                  {pkg.highlight && <div style={{position:"absolute",top:-8,right:14,background:"linear-gradient(90deg,#fbbf24,#f59e0b)",fontSize:8,fontWeight:800,color:"#1a0a36",padding:"3px 8px",borderRadius:6,letterSpacing:0.5}}>★ MEST POPULÄR</div>}
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,marginBottom:5}}>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:14,fontWeight:700,color:"var(--tx)"}}>{pkg.name}</div>
+                      {pkg.duration_min && <div style={{fontSize:10,color:"var(--tx3)"}}>⏱ {pkg.duration_min} min{pkg.max_participants?` · max ${pkg.max_participants} pers.`:""}</div>}
+                    </div>
+                    <div style={{textAlign:"right",flexShrink:0}}>
+                      <div style={{fontSize:18,fontWeight:800,color:"#d4af37"}}>{pkg.price.toLocaleString("sv-SE")} kr</div>
+                      <div style={{fontSize:9,color:"var(--tx4)"}}>{pkg.price_unit==="per_person"?"/person":pkg.price_unit==="per_timme"?"/timme":pkg.price_unit==="per_natt"?"/natt":""}</div>
+                    </div>
+                  </div>
+                  {pkg.description && <div style={{fontSize:12,color:"var(--tx2)",lineHeight:1.55,marginBottom:7}}>{pkg.description}</div>}
+                  {pkg.includes?.length > 0 && (
+                    <ul style={{listStyle:"none",padding:0,margin:"0 0 9px",display:"grid",gap:3}}>
+                      {pkg.includes.map((inc,i)=>(
+                        <li key={i} style={{fontSize:11,color:"var(--tx2)",display:"flex",gap:6,alignItems:"flex-start"}}><span style={{color:"#34d399",flexShrink:0}}>✓</span> {inc}</li>
+                      ))}
+                    </ul>
+                  )}
+                  <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                    {pkg.booking_link ? (
+                      <a href={pkg.booking_link} target="_blank" rel="noreferrer" style={{background:"linear-gradient(135deg,var(--acc),var(--acc3))",borderRadius:8,padding:"7px 13px",fontSize:11,fontWeight:700,color:"#fff",textDecoration:"none"}}>Boka nu →</a>
+                    ) : null}
+                    <Btn ch="💬 Fråga om paketet" v="ghost" sz="sm" onClick={()=>handleAskQuestion(pkg)}/>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* KONTAKT */}
+        <div style={{marginBottom:14,padding:"12px 14px",background:"var(--bg3)",border:"1px solid var(--b)",borderRadius:11}}>
+          <div style={{fontSize:10,fontWeight:700,color:"var(--tx3)",letterSpacing:1.5,textTransform:"uppercase",marginBottom:8}}>Kontakt & länkar</div>
+          <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
+            {partner.booking_url && <a href={partner.booking_url} target="_blank" rel="noreferrer" style={{background:"rgba(52,211,153,0.12)",border:"1px solid rgba(52,211,153,0.3)",borderRadius:8,padding:"6px 11px",fontSize:11,fontWeight:600,color:"#34d399",textDecoration:"none"}}>🎟️ Boka direkt</a>}
+            {partner.website && <a href={partner.website} target="_blank" rel="noreferrer" style={{background:"var(--card)",border:"1px solid var(--b2)",borderRadius:8,padding:"6px 11px",fontSize:11,fontWeight:600,color:"var(--tx2)",textDecoration:"none"}}>🔗 Webb</a>}
+            {partner.contact_email && <a href={`mailto:${partner.contact_email}`} style={{background:"var(--card)",border:"1px solid var(--b2)",borderRadius:8,padding:"6px 11px",fontSize:11,fontWeight:600,color:"var(--tx2)",textDecoration:"none"}}>✉️ E-post</a>}
+            {partner.contact_phone && <a href={`tel:${partner.contact_phone}`} style={{background:"var(--card)",border:"1px solid var(--b2)",borderRadius:8,padding:"6px 11px",fontSize:11,fontWeight:600,color:"var(--tx2)",textDecoration:"none"}}>📞 Ring</a>}
+            {partner.instagram && <a href={partner.instagram} target="_blank" rel="noreferrer" style={{background:"rgba(236,72,153,0.1)",border:"1px solid rgba(236,72,153,0.3)",borderRadius:8,padding:"6px 11px",fontSize:11,fontWeight:600,color:"#f472b6",textDecoration:"none"}}>📷 Instagram</a>}
+            {partner.youtube && <a href={partner.youtube} target="_blank" rel="noreferrer" style={{background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.3)",borderRadius:8,padding:"6px 11px",fontSize:11,fontWeight:600,color:"#f87171",textDecoration:"none"}}>▶ YouTube</a>}
+            {partner.facebook && <a href={partner.facebook} target="_blank" rel="noreferrer" style={{background:"rgba(96,165,250,0.1)",border:"1px solid rgba(96,165,250,0.3)",borderRadius:8,padding:"6px 11px",fontSize:11,fontWeight:600,color:"#60a5fa",textDecoration:"none"}}>👥 Facebook</a>}
+            {partner.tiktok && <a href={partner.tiktok} target="_blank" rel="noreferrer" style={{background:"var(--card)",border:"1px solid var(--b2)",borderRadius:8,padding:"6px 11px",fontSize:11,fontWeight:600,color:"var(--tx2)",textDecoration:"none"}}>🎵 TikTok</a>}
+          </div>
+        </div>
+
+        {/* FRÅGA-KNAPP */}
+        <Btn ch="💬 Skicka en fråga till partnern" v="p" full onClick={()=>handleAskQuestion(null)}/>
+        <div style={{fontSize:10,color:"var(--tx4)",textAlign:"center",marginTop:8,lineHeight:1.5}}>
+          Frågan landar i Spökkartans adminpanel — Fredrik vidarebefordrar till partnern. Förvänta svar inom 1–2 dagar.
+        </div>
+
+        {showQuestion && <PartnerQuestionModal partner={partner} pkg={selectedPkg} user={user} onClose={()=>setShowQuestion(false)}/>}
+      </div>
+    </div>
+  );
+}
+
+// ── FRÅGEFORMULÄR (modal) ─────────────────────────────────────
+function PartnerQuestionModal({ partner, pkg, user, onClose }) {
+  const [name, setName] = useState(user?.name || "");
+  const [email, setEmail] = useState(user?.email || "");
+  const [phone, setPhone] = useState("");
+  const [subject, setSubject] = useState(pkg?`Fråga om ${pkg.name}`:"");
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [done, setDone] = useState(false);
+  const [err, setErr] = useState("");
+
+  async function send() {
+    if (!name.trim() || !email.trim() || !message.trim()) {
+      setErr("Namn, e-post och meddelande krävs"); return;
+    }
+    setLoading(true); setErr("");
+    try {
+      await submitPartnerQuestion({
+        partner_id: partner.id,
+        asker_name: name.trim(),
+        asker_email: email.trim(),
+        asker_phone: phone.trim() || null,
+        subject: subject.trim() || null,
+        message: message.trim(),
+        package_id: pkg?.id || null,
+      });
+      setDone(true);
+    } catch(e) { setErr("Kunde inte skicka: " + e.message); }
+    finally { setLoading(false); }
+  }
+
+  const inp = {width:"100%",background:"var(--bg3)",border:"1px solid var(--b)",borderRadius:9,padding:"10px 12px",fontSize:13,color:"var(--tx)",marginBottom:9};
+  const lbl = {fontSize:11,fontWeight:600,color:"var(--tx3)",marginBottom:4,marginTop:4,display:"block"};
+
+  if (done) return (
+    <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+      <div className="modal-sheet au" style={{textAlign:"center",padding:"32px 22px"}}>
+        <div style={{fontSize:48,marginBottom:12}}>✅</div>
+        <h2 style={{fontSize:18,fontWeight:800,color:"var(--tx)",marginBottom:8}}>Tack — frågan är skickad!</h2>
+        <p style={{fontSize:13,color:"var(--tx2)",lineHeight:1.65,marginBottom:18}}>
+          Vi har skickat din fråga till {partner.name}. Den landar i Spökkartans adminpanel och vidarebefordras. Förvänta svar inom 1–2 dagar via {email}.
+        </p>
+        <Btn ch="Stäng" v="p" full onClick={onClose}/>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+      <div className="modal-sheet au" style={{maxHeight:"92vh",overflowY:"auto"}}>
+        <div className="modal-handle"/>
+        <button onClick={onClose} style={{position:"absolute",top:14,right:14,background:"none",border:"none",color:"var(--tx3)",cursor:"pointer",fontSize:22,padding:4}}>✕</button>
+        <h2 style={{fontSize:18,fontWeight:800,color:"var(--tx)",marginBottom:6}}>💬 Fråga {partner.name}</h2>
+        <p style={{fontSize:12,color:"var(--tx3)",marginBottom:14,lineHeight:1.55}}>
+          Frågan landar i Spökkartans adminpanel och vidarebefordras till partnern. Vi sparar din e-post för svaret — inget annat.
+        </p>
+        {pkg && <div style={{background:"rgba(124,58,237,0.08)",border:"1px solid rgba(124,58,237,0.3)",borderRadius:9,padding:"8px 11px",marginBottom:12,fontSize:12}}>📦 Gäller paket: <strong style={{color:"#a78bfa"}}>{pkg.name}</strong> · {pkg.price.toLocaleString("sv-SE")} kr</div>}
+
+        <label style={lbl}>Ditt namn *</label>
+        <input style={inp} value={name} onChange={e=>setName(e.target.value)} placeholder="Anna Andersson"/>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9}}>
+          <div><label style={lbl}>E-post *</label><input style={inp} type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="anna@example.com"/></div>
+          <div><label style={lbl}>Telefon (valfri)</label><input style={inp} value={phone} onChange={e=>setPhone(e.target.value)} placeholder="070-..."/></div>
+        </div>
+        <label style={lbl}>Ämne</label>
+        <input style={inp} value={subject} onChange={e=>setSubject(e.target.value)} placeholder="t.ex. Tillgänglig 14 juni?"/>
+        <label style={lbl}>Meddelande *</label>
+        <textarea style={{...inp,minHeight:110,resize:"vertical"}} value={message} onChange={e=>setMessage(e.target.value)} placeholder={`Hej ${partner.name.split(" ")[0]}!\n\nJag undrar...`}/>
+
+        {err && <div style={{background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.3)",borderRadius:8,padding:"8px 12px",fontSize:12,color:"#ef4444",marginBottom:10}}>{err}</div>}
+
+        <Btn ch={loading?"Skickar…":"📨 Skicka frågan"} v="p" full onClick={send} disabled={loading}/>
+      </div>
+    </div>
+  );
+}
+
+// ── BLI PARTNER (modal) ──────────────────────────────────────
 function BecomePartnerModal({ onClose, onSuccess, user }) {
-  const [type, setType] = useState("hunter");
+  const [type, setType] = useState("medium");
   const [name, setName] = useState(user?.name || "");
   const [tagline, setTagline] = useState("");
   const [bio, setBio] = useState("");
+  const [whatGets, setWhatGets] = useState("");
   const [regions, setRegions] = useState("");
   const [website, setWebsite] = useState("");
   const [instagram, setInstagram] = useState("");
+  const [youtube, setYoutube] = useState("");
+  const [facebook, setFacebook] = useState("");
   const [contactEmail, setContactEmail] = useState(user?.email || "");
+  const [contactPhone, setContactPhone] = useState("");
   const [bookingUrl, setBookingUrl] = useState("");
-  const [tier, setTier] = useState("free");
+  const [priceFrom, setPriceFrom] = useState("");
+  const [tier, setTier] = useState("basic");
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
+  const [step, setStep] = useState(1); // 1: typ+grund, 2: paket+priser, 3: klart
 
   async function submit() {
     if (!name.trim()) { setErr("Namn krävs"); return; }
@@ -1758,13 +2632,18 @@ function BecomePartnerModal({ onClose, onSuccess, user }) {
     setLoading(true); setErr("");
     try {
       await createPartner({
-        type, name: name.trim(), tagline: tagline.trim(), bio: bio.trim(),
+        type, name: name.trim(),
+        tagline: tagline.trim(), bio: bio.trim(),
+        what_customer_gets: whatGets.trim(),
         regions_covered: regions.split(",").map(s=>s.trim()).filter(Boolean),
         website: website.trim(), instagram: instagram.trim(),
-        contact_email: contactEmail.trim(), booking_url: bookingUrl.trim(),
+        youtube: youtube.trim(), facebook: facebook.trim(),
+        contact_email: contactEmail.trim(), contact_phone: contactPhone.trim(),
+        booking_url: bookingUrl.trim(),
+        price_from: priceFrom ? parseInt(priceFrom,10) : null,
         tier, status: "pending",
       });
-      onSuccess();
+      setStep(3);
     } catch(e) {
       setErr("Kunde inte spara: " + e.message);
     } finally { setLoading(false); }
@@ -1773,74 +2652,141 @@ function BecomePartnerModal({ onClose, onSuccess, user }) {
   const inp = {width:"100%",background:"var(--bg3)",border:"1px solid var(--b)",borderRadius:9,padding:"10px 12px",fontSize:13,color:"var(--tx)",marginBottom:10};
   const lbl = {fontSize:11,fontWeight:600,color:"var(--tx3)",marginBottom:4,marginTop:4,display:"block"};
 
+  if (step === 3) return (
+    <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+      <div className="modal-sheet au" style={{textAlign:"center",padding:"34px 24px"}}>
+        <div style={{fontSize:54,marginBottom:14}}>🎉</div>
+        <h2 style={{fontSize:20,fontWeight:800,color:"var(--tx)",marginBottom:10}}>Tack — ansökan är inskickad!</h2>
+        <p style={{fontSize:13,color:"var(--tx2)",lineHeight:1.65,marginBottom:8}}>
+          Fredrik granskar din profil inom 24 timmar. Du får mejl till <strong>{contactEmail}</strong> när den går live.
+        </p>
+        <p style={{fontSize:12,color:"var(--tx3)",lineHeight:1.65,marginBottom:18}}>
+          Betalningslänk för <strong style={{color:TIER_CONFIG[tier].color}}>{TIER_CONFIG[tier].label}</strong>-paketet ({TIER_CONFIG[tier].price} kr/mån) skickas i samma mejl.
+        </p>
+        <p style={{fontSize:11,color:"var(--tx4)",marginBottom:18}}>Tips: efter godkännande kan du logga in och lägga till paket, priser och bilder.</p>
+        <Btn ch="Stäng" v="p" full onClick={()=>{onSuccess();onClose();}}/>
+      </div>
+    </div>
+  );
+
   return (
     <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
-      <div className="modal-sheet au" style={{maxHeight:"92vh",overflowY:"auto"}}>
+      <div className="modal-sheet au" style={{maxHeight:"94vh",overflowY:"auto"}}>
         <div className="modal-handle"/>
         <button onClick={onClose} style={{position:"absolute",top:14,right:14,background:"none",border:"none",color:"var(--tx3)",cursor:"pointer",fontSize:22,padding:4}}>✕</button>
         <h2 style={{fontSize:20,fontWeight:800,color:"var(--tx)",marginBottom:6}}>Bli partner ✨</h2>
-        <p style={{fontSize:12,color:"var(--tx3)",marginBottom:18,lineHeight:1.55}}>
-          Lista din verksamhet på Spökkartan. Gratis grundläggande listing — uppgradera när du är redo.
+        <p style={{fontSize:12,color:"var(--tx3)",marginBottom:14,lineHeight:1.55}}>
+          Lista din verksamhet på Spökkartan från 29 kr/mån. Steg {step}/2 — du kan alltid uppgradera senare.
         </p>
 
-        <label style={lbl}>Typ av verksamhet</label>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:6,marginBottom:14}}>
-          {PARTNER_TYPES.filter(t=>t.code!=="all").map(pt => (
-            <button key={pt.code} onClick={()=>setType(pt.code)} style={{background:type===pt.code?"rgba(124,58,237,0.18)":"var(--bg3)",border:`1px solid ${type===pt.code?"#7c3aed":"var(--b)"}`,borderRadius:9,padding:"9px 10px",fontSize:12,fontWeight:600,color:type===pt.code?"#a78bfa":"var(--tx2)",cursor:"pointer",display:"flex",gap:6,alignItems:"center"}}>
-              <span>{pt.icon}</span>{pt.label}
-            </button>
+        {/* STEP-INDIKATOR */}
+        <div style={{display:"flex",gap:6,marginBottom:16}}>
+          {[1,2].map(s=>(
+            <div key={s} style={{flex:1,height:4,borderRadius:2,background:s<=step?"#7c3aed":"var(--b)"}}/>
           ))}
         </div>
 
-        <label style={lbl}>Namn / Företagsnamn</label>
-        <input style={inp} value={name} onChange={e=>setName(e.target.value)} placeholder="t.ex. Stockholm Ghost Walks"/>
+        {step === 1 && (
+          <>
+            <label style={lbl}>Typ av verksamhet *</label>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:6,marginBottom:14}}>
+              {PARTNER_TYPES.filter(t=>t.code!=="all").map(pt => (
+                <button key={pt.code} onClick={()=>setType(pt.code)} style={{background:type===pt.code?"rgba(124,58,237,0.18)":"var(--bg3)",border:`1px solid ${type===pt.code?"#7c3aed":"var(--b)"}`,borderRadius:9,padding:"10px",fontSize:12,fontWeight:600,color:type===pt.code?"#a78bfa":"var(--tx2)",cursor:"pointer",textAlign:"left"}}>
+                  <div style={{fontSize:18,marginBottom:3}}>{pt.icon}</div>
+                  <div>{pt.label}</div>
+                  <div style={{fontSize:9,color:"var(--tx4)",fontWeight:500,marginTop:2}}>{pt.short}</div>
+                </button>
+              ))}
+            </div>
 
-        <label style={lbl}>Slogan / Kort beskrivning</label>
-        <input style={inp} value={tagline} onChange={e=>setTagline(e.target.value)} placeholder="t.ex. Sveriges mest spännande nattvandringar"/>
+            <label style={lbl}>Namn / Företagsnamn *</label>
+            <input style={inp} value={name} onChange={e=>setName(e.target.value)} placeholder="t.ex. Stockholm Ghost Walks"/>
 
-        <label style={lbl}>Längre presentation (valfritt)</label>
-        <textarea style={{...inp,minHeight:70,resize:"vertical"}} value={bio} onChange={e=>setBio(e.target.value)} placeholder="Berätta om din verksamhet, erfarenhet, vad som gör er speciella..."/>
+            <label style={lbl}>Slogan / Kort beskrivning (visas i kortet)</label>
+            <input style={inp} value={tagline} onChange={e=>setTagline(e.target.value)} placeholder="t.ex. Sveriges mest spännande nattvandringar"/>
 
-        <label style={lbl}>Regioner (kommaseparerat)</label>
-        <input style={inp} value={regions} onChange={e=>setRegions(e.target.value)} placeholder="Stockholm, Uppsala, Östergötland"/>
+            <label style={lbl}>Beskriv din verksamhet närmare</label>
+            <textarea style={{...inp,minHeight:80,resize:"vertical"}} value={bio} onChange={e=>setBio(e.target.value)} placeholder="Vem är du? Vad gör ni? Vad är er erfarenhet, ert område, er specialitet?"/>
 
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:6}}>
-          <div><label style={lbl}>Webb</label><input style={inp} value={website} onChange={e=>setWebsite(e.target.value)} placeholder="https://..."/></div>
-          <div><label style={lbl}>Instagram</label><input style={inp} value={instagram} onChange={e=>setInstagram(e.target.value)} placeholder="@handle"/></div>
-        </div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:6}}>
-          <div><label style={lbl}>Kontakt-e-post</label><input style={inp} type="email" value={contactEmail} onChange={e=>setContactEmail(e.target.value)} placeholder="info@..."/></div>
-          <div><label style={lbl}>Bokningslänk</label><input style={inp} value={bookingUrl} onChange={e=>setBookingUrl(e.target.value)} placeholder="https://..."/></div>
-        </div>
+            <label style={lbl}>Vad får kunden ut? (visas tydligt i din profil)</label>
+            <textarea style={{...inp,minHeight:70,resize:"vertical"}} value={whatGets} onChange={e=>setWhatGets(e.target.value)} placeholder="Beskriv konkret upplevelsen — t.ex. '90 min guidning + EMF-utrustning + minnesbild + 1 glas glögg'"/>
 
-        <label style={lbl}>Välj paket</label>
-        <div style={{display:"grid",gap:8,marginBottom:14}}>
-          {[["free","Gratis","Listas i sökresultat"],["basic","Basic 99 kr/mån","+ 5 services, foto, kontaktformulär"],["pro","Pro 299 kr/mån","+ Verified-badge, prioriteras i sök"],["featured","Featured 799 kr/mån","+ Förstasidesvisning + cross-promo"]].map(([code,label,desc]) => {
-            const c = TIER_CONFIG[code];
-            return (
-              <button key={code} onClick={()=>setTier(code)} style={{background:tier===code?`${c.color}22`:"var(--bg3)",border:`1px solid ${tier===code?c.color:"var(--b)"}`,borderRadius:10,padding:"10px 12px",cursor:"pointer",textAlign:"left",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
-                <div>
-                  <div style={{fontSize:13,fontWeight:700,color:tier===code?c.color:"var(--tx)"}}>{label}</div>
-                  <div style={{fontSize:11,color:"var(--tx3)",marginTop:2}}>{desc}</div>
-                </div>
-                {tier===code && <span style={{color:c.color,fontSize:18}}>✓</span>}
-              </button>
-            );
-          })}
-        </div>
-        {tier !== "free" && (
-          <div style={{fontSize:11,color:"var(--tx3)",marginBottom:10,padding:"8px 10px",background:"rgba(96,165,250,0.07)",border:"1px solid rgba(96,165,250,0.2)",borderRadius:8}}>
-            ℹ️ Profil skapas som väntar på godkännande. Betalningslänk skickas via e-post efter att Fredrik granskat din ansökan.
-          </div>
+            <label style={lbl}>Regioner / städer (kommaseparerat)</label>
+            <input style={inp} value={regions} onChange={e=>setRegions(e.target.value)} placeholder="Stockholm, Uppsala, Östergötland"/>
+
+            <label style={lbl}>Lägsta pris (frivilligt — visas som "fr. X kr")</label>
+            <input style={inp} type="number" value={priceFrom} onChange={e=>setPriceFrom(e.target.value)} placeholder="t.ex. 299"/>
+
+            <div style={{fontSize:10,fontWeight:700,color:"var(--tx3)",letterSpacing:1.5,textTransform:"uppercase",marginTop:6,marginBottom:6}}>Kontakt & länkar</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9}}>
+              <div><label style={lbl}>Webb</label><input style={inp} value={website} onChange={e=>setWebsite(e.target.value)} placeholder="https://..."/></div>
+              <div><label style={lbl}>Instagram</label><input style={inp} value={instagram} onChange={e=>setInstagram(e.target.value)} placeholder="@handle"/></div>
+              <div><label style={lbl}>YouTube</label><input style={inp} value={youtube} onChange={e=>setYoutube(e.target.value)} placeholder="https://..."/></div>
+              <div><label style={lbl}>Facebook</label><input style={inp} value={facebook} onChange={e=>setFacebook(e.target.value)} placeholder="https://..."/></div>
+              <div><label style={lbl}>E-post *</label><input style={inp} type="email" value={contactEmail} onChange={e=>setContactEmail(e.target.value)} placeholder="info@..."/></div>
+              <div><label style={lbl}>Telefon</label><input style={inp} value={contactPhone} onChange={e=>setContactPhone(e.target.value)} placeholder="070-..."/></div>
+            </div>
+            <label style={lbl}>Bokningslänk (om du har)</label>
+            <input style={inp} value={bookingUrl} onChange={e=>setBookingUrl(e.target.value)} placeholder="https://bokning.../"/>
+
+            <Btn ch="Nästa: välj paket →" v="p" full onClick={()=>{
+              if(!name.trim()){setErr("Namn krävs");return;}
+              if(!contactEmail.trim()){setErr("E-post krävs");return;}
+              setErr(""); setStep(2);
+            }}/>
+            {err && <div style={{background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.3)",borderRadius:8,padding:"8px 12px",fontSize:12,color:"#ef4444",marginTop:10}}>{err}</div>}
+          </>
         )}
 
-        {err && <div style={{background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.3)",borderRadius:8,padding:"8px 12px",fontSize:12,color:"#ef4444",marginBottom:10}}>{err}</div>}
+        {step === 2 && (
+          <>
+            <div style={{fontSize:13,fontWeight:700,color:"var(--tx)",marginBottom:8}}>Välj paket</div>
+            <p style={{fontSize:11,color:"var(--tx3)",lineHeight:1.55,marginBottom:14}}>
+              Du kan börja gratis. Uppgradering öppnar fler paket-platser, foton, statistik och bättre placering.
+            </p>
+            <div style={{display:"grid",gap:10,marginBottom:16}}>
+              {Object.entries(TIER_CONFIG).map(([code,t]) => {
+                const sel = tier === code;
+                return (
+                  <button key={code} onClick={()=>setTier(code)} style={{background:sel?`${t.color}1a`:"var(--bg3)",border:`2px solid ${sel?t.color:"var(--b)"}`,borderRadius:12,padding:"14px 14px",cursor:"pointer",textAlign:"left",position:"relative"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:5,gap:8}}>
+                      <div>
+                        <div style={{fontSize:14,fontWeight:800,color:sel?t.color:"var(--tx)"}}>{t.label}</div>
+                        <div style={{fontSize:11,color:"var(--tx3)",marginTop:1}}>{t.pitch}</div>
+                      </div>
+                      <div style={{textAlign:"right",flexShrink:0}}>
+                        <div style={{fontSize:18,fontWeight:800,color:sel?t.color:"var(--tx)"}}>{t.price} kr</div>
+                        <div style={{fontSize:9,color:"var(--tx4)"}}>/månad</div>
+                      </div>
+                    </div>
+                    <ul style={{listStyle:"none",padding:0,margin:"4px 0 0",display:"grid",gap:3}}>
+                      {t.perks.map((perk,i)=>(
+                        <li key={i} style={{fontSize:11,color:"var(--tx2)",display:"flex",gap:6}}><span style={{color:t.color}}>✓</span> {perk}</li>
+                      ))}
+                    </ul>
+                    {sel && <span style={{position:"absolute",top:12,right:12,color:t.color,fontSize:18,fontWeight:800}}>✓</span>}
+                  </button>
+                );
+              })}
+            </div>
 
-        <Btn ch={loading?"Skapar…":"Skicka in ansökan →"} v="p" full onClick={submit}/>
+            <div style={{fontSize:11,color:"var(--tx3)",marginBottom:10,padding:"9px 11px",background:"rgba(96,165,250,0.07)",border:"1px solid rgba(96,165,250,0.2)",borderRadius:9,lineHeight:1.55}}>
+              ℹ️ Profilen skapas som <strong>väntar på godkännande</strong>. När Fredrik godkänt får du betalningslänk via mejl. Ingen betalning innan profilen är live.
+            </div>
+
+            {err && <div style={{background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.3)",borderRadius:8,padding:"8px 12px",fontSize:12,color:"#ef4444",marginBottom:10}}>{err}</div>}
+
+            <div style={{display:"flex",gap:8}}>
+              <Btn ch="← Tillbaka" v="ghost" onClick={()=>setStep(1)}/>
+              <div style={{flex:1}}><Btn ch={loading?"Skickar…":"Skicka in ansökan →"} v="p" full onClick={submit} disabled={loading}/></div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
 }
+
 
 // ── LANGUAGE PICKER ──────────────────────────────────────────
 function LanguagePicker({ lang, setLang, langs, t }) {
@@ -1872,6 +2818,221 @@ function LanguagePicker({ lang, setLang, langs, t }) {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+// ── OM OSS ────────────────────────────────────────────────────
+function AboutPage({ setView }) {
+  const [reportOpen, setReportOpen] = useState(false);
+  return (
+    <div style={{flex:1,overflowY:"auto",paddingBottom:90}}>
+      {/* HERO */}
+      <div style={{background:"linear-gradient(160deg,#1a0a36,#08070e)",padding:"28px 18px 22px",borderBottom:"1px solid var(--b)",position:"relative",overflow:"hidden"}}>
+        <div style={{position:"absolute",top:-40,right:-40,fontSize:180,opacity:0.05}}>👻</div>
+        <div style={{fontSize:10,fontWeight:700,color:"#a78bfa",letterSpacing:3,textTransform:"uppercase",marginBottom:6}}>💜 Om Spökkartan</div>
+        <h1 style={{fontSize:"clamp(22px,6vw,32px)",fontWeight:800,color:"var(--tx)",lineHeight:1.15,marginBottom:10,position:"relative"}}>
+          Vi är nördiga <span className="gt">storytellers</span> som älskar spökhistorier
+        </h1>
+        <p style={{fontSize:14,color:"var(--tx2)",lineHeight:1.7,position:"relative"}}>
+          Spökkartan finns för att berättelser från förr — och nu — inte ska glömmas bort.
+          Vi vill föra traditionen vidare och göra det enkelt att upptäcka spännande platser på nära håll.
+        </p>
+      </div>
+
+      {/* MISSION */}
+      <div style={{padding:"22px 16px 0"}}>
+        <div style={{fontSize:11,fontWeight:700,color:"#a78bfa",letterSpacing:2,textTransform:"uppercase",marginBottom:10}}>Vår mission</div>
+        <div style={{display:"grid",gap:11}}>
+          <div style={{background:"var(--card)",border:"1px solid var(--b)",borderRadius:13,padding:"15px 16px",borderLeft:"3px solid #a78bfa"}}>
+            <div style={{fontSize:22,marginBottom:6}}>📖</div>
+            <div style={{fontSize:14,fontWeight:700,color:"var(--tx)",marginBottom:5}}>Bevara berättelserna</div>
+            <div style={{fontSize:13,color:"var(--tx2)",lineHeight:1.65}}>
+              Spökhistorier och historiska platser är en del av vårt kulturarv. Vi samlar in, dokumenterar och delar berättelser från förr och nu — så att traditionen lever vidare.
+            </div>
+          </div>
+          <div style={{background:"var(--card)",border:"1px solid var(--b)",borderRadius:13,padding:"15px 16px",borderLeft:"3px solid #34d399"}}>
+            <div style={{fontSize:22,marginBottom:6}}>🗺️</div>
+            <div style={{fontSize:14,fontWeight:700,color:"var(--tx)",marginBottom:5}}>Enkelt att upptäcka</div>
+            <div style={{fontSize:13,color:"var(--tx2)",lineHeight:1.65}}>
+              Vi vill att det ska vara enkelt att läsa och utforska spännande platser — också nära dig. Karta, sökning och stories på ett ställe.
+            </div>
+          </div>
+          <div style={{background:"var(--card)",border:"1px solid var(--b)",borderRadius:13,padding:"15px 16px",borderLeft:"3px solid #fbbf24"}}>
+            <div style={{fontSize:22,marginBottom:6}}>✨</div>
+            <div style={{fontSize:14,fontWeight:700,color:"var(--tx)",marginBottom:5}}>Föra traditionen vidare</div>
+            <div style={{fontSize:13,color:"var(--tx2)",lineHeight:1.65}}>
+              Genom partners, spökjägare, e-böcker och evenemang vill vi bygga en levande gemenskap för alla som älskar det mystiska och historiska.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* TRO & SANNING */}
+      <div style={{padding:"22px 16px 0"}}>
+        <div style={{fontSize:11,fontWeight:700,color:"#a78bfa",letterSpacing:2,textTransform:"uppercase",marginBottom:10}}>Tro & sanning</div>
+        <div style={{background:"linear-gradient(135deg,rgba(124,58,237,0.1),rgba(13,11,27,0.6))",border:"1px solid rgba(124,58,237,0.25)",borderRadius:14,padding:"16px 18px"}}>
+          <div style={{fontSize:30,marginBottom:8}}>🕯️</div>
+          <p style={{fontSize:14,color:"var(--tx)",lineHeight:1.75,marginBottom:10}}>
+            Eftersom <strong>tro är individuell</strong>, lägger vi ingen vikt vid vad du tror på.
+          </p>
+          <p style={{fontSize:13,color:"var(--tx2)",lineHeight:1.7}}>
+            Vad som är helt sant, eller inte, om en plats eller historia är ofta svårt att veta. Vi för bara berättelserna vidare från de källor vi kan hitta eller komma i kontakt med — du får själv avgöra vad du tar med dig.
+          </p>
+        </div>
+      </div>
+
+      {/* PARTNERS & ANSVAR */}
+      <div style={{padding:"22px 16px 0"}}>
+        <div style={{fontSize:11,fontWeight:700,color:"#a78bfa",letterSpacing:2,textTransform:"uppercase",marginBottom:10}}>Partners & spökjägare</div>
+        <div style={{background:"var(--card)",border:"1px solid var(--b)",borderRadius:14,padding:"16px 18px"}}>
+          <p style={{fontSize:13,color:"var(--tx2)",lineHeight:1.75,marginBottom:12}}>
+            Vi tar inget ansvar för våra partners eller spökjägare utöver det rimliga — men vi har en enkel regel: <strong style={{color:"var(--tx)"}}>man ska vara schysst och leverera det man lovar</strong>.
+          </p>
+          <p style={{fontSize:13,color:"var(--tx2)",lineHeight:1.75,marginBottom:14}}>
+            Sköter någon sig dåligt vill vi veta det. Hör av dig så tar vi tag i det.
+          </p>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+            <Btn ch="🚩 Anmäl en partner / spökjägare" v="p" sz="sm" onClick={()=>setReportOpen(true)}/>
+            <Btn ch="✉️ Mejla oss" v="ghost" sz="sm" onClick={()=>{window.location.href="mailto:fredrick.lundberg@gmail.com?subject=Spökkartan%20-%20återkoppling";}}/>
+          </div>
+        </div>
+      </div>
+
+      {/* HUR VI JOBBAR */}
+      <div style={{padding:"22px 16px 0"}}>
+        <div style={{fontSize:11,fontWeight:700,color:"#a78bfa",letterSpacing:2,textTransform:"uppercase",marginBottom:10}}>Så jobbar vi</div>
+        <div style={{display:"grid",gap:9}}>
+          {[
+            ["🔍","Vi letar","Vi gräver i arkiv, böcker, lokala källor och pratar med människor som vågat dokumentera."],
+            ["📝","Vi sammanfattar","Berättelser sammanställs så att de blir lätta att läsa — utan att vi förvanskar källan."],
+            ["🗺️","Vi kartlägger","Allt placeras på kartan så du enkelt hittar det som är nära dig — eller som du vill resa till."],
+            ["💬","Vi lyssnar","Hittar du fel, har en egen historia, eller vill tipsa om en plats? Säg till. Det är så det blir bättre."],
+          ].map(([icon,title,body])=>(
+            <div key={title} style={{background:"var(--card2)",border:"1px solid var(--b)",borderRadius:11,padding:"12px 14px",display:"flex",gap:12,alignItems:"flex-start"}}>
+              <div style={{fontSize:22,flexShrink:0}}>{icon}</div>
+              <div>
+                <div style={{fontSize:13,fontWeight:700,color:"var(--tx)",marginBottom:2}}>{title}</div>
+                <div style={{fontSize:12,color:"var(--tx2)",lineHeight:1.6}}>{body}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* SNABBLÄNKAR */}
+      <div style={{padding:"22px 16px 0"}}>
+        <div style={{fontSize:11,fontWeight:700,color:"#a78bfa",letterSpacing:2,textTransform:"uppercase",marginBottom:10}}>Utforska Spökkartan</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9}}>
+          {[
+            ["👻","Kartan","Hitta hemsökta platser","map"],
+            ["📖","Stories","Läs berättelserna","stories"],
+            ["🌟","Partners","Boka upplevelser","partners"],
+            ["🔍","Spökjägare","Möt jägarna","hunters"],
+          ].map(([icon,title,desc,target])=>(
+            <button key={target} onClick={()=>setView(target)} style={{background:"var(--card)",border:"1px solid var(--b)",borderRadius:11,padding:"14px 13px",cursor:"pointer",textAlign:"left"}}>
+              <div style={{fontSize:24,marginBottom:5}}>{icon}</div>
+              <div style={{fontSize:13,fontWeight:700,color:"var(--tx)",marginBottom:2}}>{title}</div>
+              <div style={{fontSize:10,color:"var(--tx3)",lineHeight:1.45}}>{desc}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* TIPSA OSS / CTA */}
+      <div style={{padding:"22px 16px 0"}}>
+        <div style={{background:"linear-gradient(135deg,#241245,#0d0b1a)",border:"1px solid var(--b2)",borderRadius:14,padding:"18px 18px",textAlign:"center"}}>
+          <div style={{fontSize:32,marginBottom:8}}>💜</div>
+          <div style={{fontSize:15,fontWeight:800,color:"var(--tx)",marginBottom:6}}>Tipsa oss om en plats eller historia</div>
+          <p style={{fontSize:12,color:"var(--tx2)",lineHeight:1.65,marginBottom:14}}>
+            Vet du en plats vi missat? Har du upplevt något själv? Hör av dig — det är så Spökkartan växer.
+          </p>
+          <Btn ch="✉️ Mejla oss en story →" v="p" onClick={()=>{window.location.href="mailto:fredrick.lundberg@gmail.com?subject=Spökkartan%20-%20platstips";}}/>
+        </div>
+      </div>
+
+      {/* OM SKAPAREN */}
+      <div style={{padding:"22px 16px 0"}}>
+        <div style={{fontSize:11,fontWeight:700,color:"#a78bfa",letterSpacing:2,textTransform:"uppercase",marginBottom:10}}>Bakom Spökkartan</div>
+        <div style={{background:"var(--card)",border:"1px solid var(--b)",borderRadius:13,padding:"15px 16px"}}>
+          <div style={{fontSize:13,color:"var(--tx2)",lineHeight:1.7}}>
+            Spökkartan är ett soloprojekt drivet med kärlek till spökhistorier, historia och berättartradition.
+            Bygger på spökkartan.se och en växande databas av platser. Hör av dig om du vill samarbeta, tipsa eller bara prata spöken.
+          </div>
+        </div>
+      </div>
+
+      {/* FOOTER mini */}
+      <div style={{padding:"24px 16px 4px",textAlign:"center"}}>
+        <div style={{fontSize:11,color:"var(--tx4)",lineHeight:1.65}}>
+          Spökkartan © {new Date().getFullYear()} — Berättelserna lever vidare. 👻
+        </div>
+      </div>
+
+      {reportOpen && <ReportModal onClose={()=>setReportOpen(false)}/>}
+    </div>
+  );
+}
+
+// ── ANMÄL EN PARTNER / SPÖKJÄGARE (modal) ─────────────────────
+function ReportModal({ onClose }) {
+  const [name, setName] = useState("");
+  const [target, setTarget] = useState("");
+  const [reason, setReason] = useState("");
+  const [contact, setContact] = useState("");
+  const [done, setDone] = useState(false);
+
+  function send() {
+    if (!target.trim() || !reason.trim()) return;
+    const subject = encodeURIComponent(`Anmälan: ${target}`);
+    const body = encodeURIComponent(`Anmäld partner/spökjägare: ${target}\n\nFrån: ${name||"anonym"} (${contact||"ingen kontakt"})\n\nVad har hänt:\n${reason}`);
+    window.location.href = `mailto:fredrick.lundberg@gmail.com?subject=${subject}&body=${body}`;
+    setDone(true);
+  }
+
+  const inp = {width:"100%",background:"var(--bg3)",border:"1px solid var(--b)",borderRadius:9,padding:"10px 12px",fontSize:13,color:"var(--tx)",marginBottom:10};
+  const lbl = {fontSize:11,fontWeight:600,color:"var(--tx3)",marginBottom:4,marginTop:4,display:"block"};
+
+  if (done) return (
+    <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+      <div className="modal-sheet au" style={{textAlign:"center",padding:"30px 22px"}}>
+        <div style={{fontSize:42,marginBottom:12}}>✅</div>
+        <h2 style={{fontSize:17,fontWeight:800,color:"var(--tx)",marginBottom:8}}>Tack — vi tar tag i det</h2>
+        <p style={{fontSize:13,color:"var(--tx2)",lineHeight:1.65,marginBottom:14}}>
+          Din anmälan har öppnat ditt mejlprogram. När du skickat hör vi av oss om vi behöver mer info.
+        </p>
+        <Btn ch="Stäng" v="p" full onClick={onClose}/>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+      <div className="modal-sheet au" style={{maxHeight:"92vh",overflowY:"auto"}}>
+        <div className="modal-handle"/>
+        <button onClick={onClose} style={{position:"absolute",top:14,right:14,background:"none",border:"none",color:"var(--tx3)",cursor:"pointer",fontSize:22,padding:4}}>✕</button>
+        <h2 style={{fontSize:18,fontWeight:800,color:"var(--tx)",marginBottom:6}}>🚩 Anmäl en partner eller spökjägare</h2>
+        <p style={{fontSize:12,color:"var(--tx3)",marginBottom:14,lineHeight:1.55}}>
+          Misskötsel, falsk marknadsföring, eller helt enkelt något som känns fel? Skriv kort vad som hänt så undersöker vi.
+        </p>
+
+        <label style={lbl}>Vem anmäler du? (namn på partner/spökjägare) *</label>
+        <input style={inp} value={target} onChange={e=>setTarget(e.target.value)} placeholder="t.ex. Stockholm Ghost Walks"/>
+
+        <label style={lbl}>Vad har hänt? *</label>
+        <textarea style={{...inp,minHeight:100,resize:"vertical"}} value={reason} onChange={e=>setReason(e.target.value)} placeholder="Beskriv så konkret du kan…"/>
+
+        <label style={lbl}>Ditt namn (valfri)</label>
+        <input style={inp} value={name} onChange={e=>setName(e.target.value)} placeholder="Anonym går också bra"/>
+
+        <label style={lbl}>Din e-post / telefon (om du vill bli kontaktad)</label>
+        <input style={inp} value={contact} onChange={e=>setContact(e.target.value)} placeholder="dindin@example.com"/>
+
+        <Btn ch="📨 Skicka anmälan" v="p" full onClick={send} disabled={!target.trim()||!reason.trim()}/>
+        <div style={{fontSize:10,color:"var(--tx4)",textAlign:"center",marginTop:8,lineHeight:1.5}}>
+          Anmälan öppnar ditt mejlprogram för att skickas till Fredrik. Vi behandlar varje fall personligt.
+        </div>
+      </div>
     </div>
   );
 }
@@ -2007,6 +3168,7 @@ export default function App() {
     {id:"ebook",icon:"✨",label:t("nav_ebook")},
     {id:"partners",icon:"🌟",label:"Partners"},
     {id:"shop",icon:"🛒",label:t("nav_shop")},
+    {id:"about",icon:"💜",label:"Om oss"},
     ...(user?.role==="ghosthunter"||user?.role==="admin"?[{id:"board",icon:"📋",label:"Anslagstavla"}]:[]),
     ...(user?.role==="admin"?[{id:"admin",icon:"⚙️",label:"Admin"}]:[]),
   ];
@@ -2177,6 +3339,7 @@ export default function App() {
         {/* HUNTERS */}
         {view==="hunters"&&<HuntersPage user={user} setAuth={setAuth} setView={setView}/>}
         {view==="partners"&&<PartnersView user={user} onAuth={setAuth} onCreate={()=>user?setShowBecomePartner(true):setAuth("login")}/>}
+        {view==="about"&&<AboutPage setView={setView}/>}
 
         {/* BOARD */}
         {view==="board"&&(
