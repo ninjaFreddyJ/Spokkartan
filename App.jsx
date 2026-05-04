@@ -101,6 +101,32 @@ const BASE_HUNTERS = [
 
 const FLAG={Sverige:"🇸🇪",Norge:"🇳🇴",Danmark:"🇩🇰",UK:"🇬🇧",Storbritannien:"🇬🇧",USA:"🇺🇸",Tyskland:"🇩🇪",Finland:"🇫🇮",Polen:"🇵🇱",Nederländerna:"🇳🇱",Italien:"🇮🇹"};
 const TYPE_ICON={Slott:"🏰",Hotell:"🛎️",Ruin:"🏚️",Kyrka:"⛪",Prästgård:"🕯️",Spökhus:"👻",Sanatorium:"🏥",Fängelse:"⚔️",Kyrkogård:"⚰️",Övergiven:"🏗️",Herrgård:"🏯",Fästning:"🗡️",Urban:"🚇",Skog:"🌲",Museum:"🏛️"};
+
+// Dela en lång text i läsbara stycken.
+// 1) Föredrar dubbla newlines (\n\n)
+// 2) Annars enkla newlines
+// 3) Sist: dela på meningar — en ny paragraf var ~3:e mening
+function splitParagraphs(text) {
+  if (!text) return [];
+  const trimmed = String(text).trim();
+  if (!trimmed) return [];
+
+  // Dubbla newlines
+  if (/\n\s*\n/.test(trimmed)) {
+    return trimmed.split(/\n\s*\n+/).map(s=>s.trim()).filter(Boolean);
+  }
+  // Enstaka newlines
+  if (/\n/.test(trimmed)) {
+    return trimmed.split(/\n+/).map(s=>s.trim()).filter(Boolean);
+  }
+  // Inga newlines — splitta på meningar och gruppera 3 åt gången
+  const sentences = trimmed.match(/[^.!?]+[.!?]+(?:\s|$)/g) || [trimmed];
+  const paras = [];
+  for (let i = 0; i < sentences.length; i += 3) {
+    paras.push(sentences.slice(i, i+3).join(" ").trim());
+  }
+  return paras.filter(Boolean);
+}
 const CAT_C={samarbete:"#a78bfa",tipsar:"#34d399",säljer:"#fbbf24",köper:"#60a5fa",event:"#2dd4bf"};
 
 // ── CSS ───────────────────────────────────────────────────────
@@ -173,8 +199,17 @@ select option{background:var(--card2)}
 .sp-pin.scary-3 .sp-pin-body{background:linear-gradient(135deg,#7c3aed,#6d28d9)}
 .sp-pin.scary-2 .sp-pin-body{background:linear-gradient(135deg,#a78bfa,#7c3aed)}
 .sp-pin.scary-1 .sp-pin-body{background:linear-gradient(135deg,#c4b5fd,#a78bfa)}
-.sp-pin.locked .sp-pin-body{background:linear-gradient(135deg,#6b7280,#374151)}
-.sp-pin.locked .sp-pin-emoji{filter:grayscale(1)}
+.sp-pin.bookable .sp-pin-body{box-shadow:inset -2px -3px 6px rgba(0,0,0,0.2),0 0 0 2px #fff,0 0 0 3px rgba(52,211,153,0.7)}
+.sp-pin-bookable{
+  position:absolute;top:-4px;right:-4px;
+  background:linear-gradient(135deg,#34d399,#059669);
+  border-radius:50%;
+  width:18px;height:18px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:9px;
+  border:2px solid #fff;
+  box-shadow:0 2px 4px rgba(0,0,0,0.3);
+}
 
 /* Karta-legend */
 .sp-legend{
@@ -256,6 +291,21 @@ select option{background:var(--card2)}
 .modal-handle{width:40px;height:4px;background:var(--b2);border-radius:2px;margin:0 auto 20px}
 
 /* Place card */
+/* Reader prose — bättre läsbarhet */
+.reader-prose{max-width:680px;margin:0 auto}
+.reader-prose p{margin:0 0 14px;text-indent:0}
+.reader-prose p:first-of-type::first-letter{
+  font-size:2.6em;
+  font-weight:700;
+  float:left;
+  line-height:0.95;
+  margin:4px 8px 0 0;
+  color:var(--acc2);
+  font-family:'Poppins',sans-serif;
+}
+.reader-prose p:last-child{margin-bottom:0}
+@media(min-width:600px){.reader-prose p{font-size:16px!important}}
+
 .place-card{background:var(--card);border:1px solid var(--b);border-radius:14px;overflow:hidden;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:opacity 0.15s}
 .place-card:active{opacity:0.82}
 .place-img{height:110px;background:linear-gradient(135deg,#110828,#0a0517);display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
@@ -336,16 +386,17 @@ function SpokMap({places,onSelect}) {
     layerRef.current.layer.options.subdomains = tile.subdomains;
   }
 
-  // Drop-pin marker — färgad efter scary-faktor
+  // Drop-pin marker — färgad efter scary-faktor, alltid med tema-emoji
   function mkIcon(p) {
     const scary = Math.max(1, Math.min(5, p.scary || 3));
     const featured = p.featured ? " featured" : "";
-    const locked = !p.free ? " locked" : "";
-    const emoji = p.free ? (TYPE_ICON[p.type] || FLAG[p.country] || "👻") : "🔒";
+    const bookable = (p.bookable && p.booking_url) ? " bookable" : "";
+    const emoji = TYPE_ICON[p.type] || FLAG[p.country] || "👻";
     const html = `
-      <div class="sp-pin scary-${scary}${featured}${locked}">
+      <div class="sp-pin scary-${scary}${featured}${bookable}">
         <div class="sp-pin-body"><span class="sp-pin-emoji">${emoji}</span></div>
         <div class="sp-pin-shadow"></div>
+        ${(p.bookable && p.booking_url) ? '<div class="sp-pin-bookable">🏨</div>' : ''}
       </div>`;
     return window.L.divIcon({
       className:"sp-marker",
@@ -442,7 +493,7 @@ function SpokMap({places,onSelect}) {
         <div className="sp-legend-row"><span className="sp-legend-dot" style={{background:"linear-gradient(135deg,#9333ea,#5b21b6)"}}/>Mycket aktivt (4)</div>
         <div className="sp-legend-row"><span className="sp-legend-dot" style={{background:"linear-gradient(135deg,#7c3aed,#6d28d9)"}}/>Aktivt (3)</div>
         <div className="sp-legend-row"><span className="sp-legend-dot" style={{background:"linear-gradient(135deg,#a78bfa,#7c3aed)"}}/>Lugnt (1–2)</div>
-        <div className="sp-legend-row"><span className="sp-legend-dot" style={{background:"linear-gradient(135deg,#6b7280,#374151)"}}/>🔒 PRO-låst</div>
+        <div className="sp-legend-row"><span className="sp-legend-dot" style={{background:"linear-gradient(135deg,#34d399,#059669)"}}/>🏨 Bokningsbart</div>
       </div>
 
       <div ref={ref} style={{width:"100%",height:"100%"}}/>
@@ -903,11 +954,21 @@ function Reader({place,allPlaces,isPro,onClose,onNavigate,upgrade,roadtrip,setRo
                   <p style={{fontSize:14,fontStyle:"italic",color:"var(--tx)",lineHeight:1.8,margin:0}}>{place.teaser}</p>
                 </div>
 
-                {/* Description */}
+                {/* Description — uppdelad i stycken */}
                 {place.description&&(
-                  <div style={{marginBottom:20}}>
-                    <div style={{fontSize:10,fontWeight:700,color:"var(--acc2)",letterSpacing:1.5,textTransform:"uppercase",marginBottom:10}}>📜 Historik & Berättelse</div>
-                    <p style={{fontSize:14,color:"var(--tx2)",lineHeight:1.85}}>{place.description}</p>
+                  <div style={{marginBottom:24}}>
+                    <div style={{fontSize:10,fontWeight:700,color:"var(--acc2)",letterSpacing:1.5,textTransform:"uppercase",marginBottom:12}}>📜 Historik & Berättelse</div>
+                    <div className="reader-prose">
+                      {splitParagraphs(place.description).map((para,i)=>(
+                        <p key={i} style={{
+                          fontSize:15,
+                          color:"var(--tx)",
+                          lineHeight:1.85,
+                          marginBottom:14,
+                          textAlign:"left"
+                        }}>{para}</p>
+                      ))}
+                    </div>
                   </div>
                 )}
 
@@ -2822,6 +2883,130 @@ function LanguagePicker({ lang, setLang, langs, t }) {
   );
 }
 
+// ── STORIES-VY (med tema-filter + bokningsbart-toggle) ───────
+function StoriesView({ places, isPro, onRead }) {
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [bookableOnly, setBookableOnly] = useState(false);
+  const [search, setSearch] = useState("");
+
+  // Räkna platser per typ för pills
+  const typeCounts = useMemo(() => {
+    const counts = {};
+    places.forEach(p => { if (p.type) counts[p.type] = (counts[p.type] || 0) + 1; });
+    return counts;
+  }, [places]);
+
+  const allTypes = useMemo(() => Object.keys(typeCounts).sort((a,b)=>typeCounts[b]-typeCounts[a]), [typeCounts]);
+
+  const filtered = useMemo(() => {
+    return places.filter(p => {
+      if (typeFilter !== "all" && p.type !== typeFilter) return false;
+      if (bookableOnly && !(p.bookable && p.booking_url)) return false;
+      if (search) {
+        const q = search.toLowerCase();
+        if (!p.name?.toLowerCase().includes(q) &&
+            !p.country?.toLowerCase().includes(q) &&
+            !p.region?.toLowerCase().includes(q) &&
+            !p.teaser?.toLowerCase().includes(q)) return false;
+      }
+      return true;
+    });
+  }, [places, typeFilter, bookableOnly, search]);
+
+  const bookableCount = places.filter(p => p.bookable && p.booking_url).length;
+
+  return (
+    <div style={{flex:1,overflowY:"auto",display:"flex",flexDirection:"column"}}>
+      {/* FILTER-HUVUD */}
+      <div style={{padding:"12px 14px 8px",borderBottom:"1px solid var(--b)",background:"var(--bg2)",position:"sticky",top:0,zIndex:5}}>
+        {/* Sök + Bokningsbart-toggle */}
+        <div style={{display:"flex",gap:8,marginBottom:9,alignItems:"center"}}>
+          <div style={{flex:1,position:"relative"}}>
+            <input className="inp inp-sm" placeholder="Sök plats, land, region…" value={search} onChange={e=>setSearch(e.target.value)} style={{paddingLeft:28}}/>
+            <span style={{position:"absolute",left:9,top:"50%",transform:"translateY(-50%)",fontSize:11,color:"var(--tx4)",pointerEvents:"none"}}>🔍</span>
+          </div>
+          <button onClick={()=>setBookableOnly(v=>!v)} title="Visa bara platser där du kan boka boende via oss" style={{flexShrink:0,background:bookableOnly?"linear-gradient(135deg,#34d399,#059669)":"var(--bg3)",border:`1px solid ${bookableOnly?"#34d399":"var(--b)"}`,borderRadius:9,padding:"7px 11px",fontSize:11,fontWeight:700,color:bookableOnly?"#fff":"var(--tx2)",cursor:"pointer",display:"flex",gap:5,alignItems:"center",whiteSpace:"nowrap"}}>
+            🏨 {bookableOnly?"Bokningsbart ✓":`Bokningsbart (${bookableCount})`}
+          </button>
+        </div>
+
+        {/* Tema-pills (typ-filter) */}
+        <div style={{display:"flex",gap:6,overflowX:"auto",WebkitOverflowScrolling:"touch",paddingBottom:4}}>
+          <button onClick={()=>setTypeFilter("all")} className={"pill"+(typeFilter==="all"?" on":"")} style={{flexShrink:0}}>🌐 Alla ({places.length})</button>
+          {allTypes.map(t => (
+            <button key={t} onClick={()=>setTypeFilter(typeFilter===t?"all":t)} className={"pill"+(typeFilter===t?" on":"")} style={{flexShrink:0}}>
+              {TYPE_ICON[t]||"📍"} {t} ({typeCounts[t]})
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* RESULTAT-COUNT */}
+      <div style={{padding:"10px 16px 0",fontSize:10,color:"var(--tx3)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <span>{filtered.length} {filtered.length===1?"plats":"platser"}{(typeFilter!=="all"||bookableOnly||search)?" · filter aktivt":""}</span>
+        {(typeFilter!=="all"||bookableOnly||search) && (
+          <button onClick={()=>{setTypeFilter("all");setBookableOnly(false);setSearch("");}} style={{background:"none",border:"none",color:"#a78bfa",fontSize:10,fontWeight:600,cursor:"pointer"}}>✕ Rensa filter</button>
+        )}
+      </div>
+
+      {/* GRID */}
+      {filtered.length === 0 ? (
+        <div style={{textAlign:"center",padding:"60px 20px",color:"var(--tx4)"}}>
+          <div style={{fontSize:48,marginBottom:10}}>👻</div>
+          <div style={{fontSize:13,fontWeight:600,color:"var(--tx2)",marginBottom:6}}>Inga platser matchade filtret</div>
+          <div style={{fontSize:11}}>Prova att ta bort filter eller ändra sökord</div>
+        </div>
+      ) : (
+        <div className="stories-grid" style={{paddingBottom:80}}>
+          {filtered.map(p => <PlaceCard key={p.id} p={p} isPro={isPro} onClick={()=>onRead(p)}/>)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── PLATSKORT (delad mellan stories-vy m.fl.) ────────────────
+function PlaceCard({ p, isPro, onClick }) {
+  const locked = !p.free && !isPro;
+  const themeIcon = TYPE_ICON[p.type] || "📍";
+  return (
+    <div className="place-card" onClick={onClick}>
+      <div className="place-img">
+        {p.img && <img src={p.img} alt={p.name} onError={e=>e.target.style.display="none"}/>}
+        {!p.img && <span style={{fontSize:32,opacity:0.18}}>{themeIcon}</span>}
+        <div className="place-img-fade"/>
+
+        {/* Tema-pill (typ) — top-left */}
+        <div style={{position:"absolute",top:7,left:7,background:"rgba(7,6,15,0.85)",backdropFilter:"blur(6px)",WebkitBackdropFilter:"blur(6px)",border:"1px solid rgba(167,139,250,0.4)",borderRadius:7,padding:"3px 8px",fontSize:9,fontWeight:700,color:"#f0ecff",display:"flex",gap:4,alignItems:"center",letterSpacing:0.2}}>
+          <span style={{fontSize:11}}>{themeIcon}</span>{p.type || "Plats"}
+        </div>
+
+        {/* Bokningsbart-badge — top-right */}
+        {p.bookable && p.booking_url && (
+          <div style={{position:"absolute",top:7,right:7,background:"linear-gradient(135deg,#34d399,#059669)",borderRadius:7,padding:"3px 7px",fontSize:9,fontWeight:800,color:"#fff",letterSpacing:0.3,boxShadow:"0 2px 6px rgba(52,211,153,0.4)"}} title="Du kan boka boende här">🏨 BO</div>
+        )}
+
+        {/* PRO-badge — bottom-right (diskret) */}
+        {!p.free && (
+          <div style={{position:"absolute",bottom:7,right:7,background:"rgba(212,175,55,0.18)",backdropFilter:"blur(6px)",WebkitBackdropFilter:"blur(6px)",border:"1px solid rgba(212,175,55,0.45)",borderRadius:6,padding:"2px 6px",fontSize:8,fontWeight:800,color:"#d4af37",letterSpacing:0.5}}>PRO</div>
+        )}
+
+        {/* Scary-dots — bottom-left */}
+        <div style={{position:"absolute",bottom:7,left:7}}><Scary n={p.scary||3} sz={4}/></div>
+      </div>
+
+      <div style={{padding:"10px 11px 12px"}}>
+        <div style={{fontSize:9,color:"var(--tx4)",marginBottom:3,display:"flex",gap:4,alignItems:"center"}}>
+          <span>{FLAG[p.country]||"🌍"}</span>
+          <span>{p.country}{p.region?` · ${p.region}`:""}</span>
+        </div>
+        <div style={{fontSize:12,fontWeight:700,color:"var(--tx)",lineHeight:1.3,marginBottom:4}}>{p.name}</div>
+        {p.teaser && <div style={{fontSize:10,color:"var(--tx3)",lineHeight:1.55,overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>{p.teaser}</div>}
+      </div>
+    </div>
+  );
+}
+
 // ── OM OSS ────────────────────────────────────────────────────
 function AboutPage({ setView }) {
   const [reportOpen, setReportOpen] = useState(false);
@@ -3268,29 +3453,7 @@ export default function App() {
 
         {/* STORIES */}
         {view==="stories"&&(
-          <div style={{flex:1,overflowY:"auto"}}>
-            <div className="stories-grid" style={{paddingBottom:80}}>
-              {allPlacesMut.map(p=>{
-                const locked=!p.free&&!isPro;
-                return(
-                  <div key={p.id} className="place-card" onClick={()=>setReading(p)}>
-                    <div className="place-img">
-                      {p.img&&<img src={p.img} alt="" onError={e=>e.target.style.display="none"}/>}
-                      {!p.img&&<span style={{fontSize:28,opacity:0.12}}>{TYPE_ICON[p.type]||"👻"}</span>}
-                      <div className="place-img-fade"/>
-                      <div style={{position:"absolute",top:6,left:7}}>{p.free?<Tag ch="Gratis" c="#34d399"/>:<Tag ch="PRO" c="#a78bfa"/>}</div>
-                      <div style={{position:"absolute",bottom:6,left:7}}><Scary n={p.scary||3} sz={4}/></div>
-                    </div>
-                    <div style={{padding:"9px 10px 11px"}}>
-                      <div style={{fontSize:8,color:"var(--tx3)",marginBottom:2}}>{FLAG[p.country]||"🌍"} {p.type}</div>
-                      <div style={{fontSize:11,fontWeight:700,color:locked?"var(--tx3)":"var(--tx)",lineHeight:1.3,marginBottom:2}}>{locked?"🔒 ":""}{p.name}</div>
-                      <div style={{fontSize:9,color:"var(--tx4)",lineHeight:1.5,overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>{p.teaser}</div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+          <StoriesView places={allPlacesMut} isPro={isPro} onRead={setReading}/>
         )}
 
         {/* EBOOK */}
