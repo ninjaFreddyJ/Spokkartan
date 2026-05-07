@@ -850,13 +850,17 @@ function Reader({place,allPlaces,isPro,onClose,onNavigate,upgrade,roadtrip,setRo
       <style>{CSS}</style>
 
       {/* ── Top bar ── */}
-      <div style={{background:"rgba(7,6,15,0.97)",backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",borderBottom:"1px solid var(--b)",padding:"11px 14px",display:"flex",alignItems:"center",gap:8,flexShrink:0,zIndex:10}}>
-        <button onClick={onClose} style={{display:"flex",alignItems:"center",gap:4,background:"none",border:"none",color:"var(--tx2)",cursor:"pointer",fontSize:14,fontWeight:500,padding:"4px 0",flexShrink:0,minWidth:70}}>
-          ← Tillbaka
+      <div style={{background:"rgba(7,6,15,0.97)",backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",borderBottom:"1px solid var(--b)",padding:"10px 14px",display:"flex",alignItems:"center",gap:8,flexShrink:0,zIndex:10}}>
+        <button onClick={onClose} style={{display:"flex",alignItems:"center",gap:3,background:"none",border:"none",color:"var(--tx2)",cursor:"pointer",fontSize:13,fontWeight:500,padding:"4px 0",flexShrink:0}} aria-label="Tillbaka">
+          ←
         </button>
-        <span style={{flex:1,fontSize:12,fontWeight:600,color:"var(--tx)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textAlign:"center"}}>{place.name}</span>
+        <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",display:"flex",alignItems:"center",gap:5,flexShrink:0,padding:0}}>
+          <span style={{fontSize:18}} className="af">👻</span>
+          <span style={{fontSize:14,fontWeight:800,color:"var(--tx)"}}>Spökkartan</span>
+        </button>
+        <span style={{flex:1,fontSize:11,fontWeight:500,color:"var(--tx3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textAlign:"center"}}>{place.name}</span>
         <div style={{display:"flex",gap:6,flexShrink:0}}>
-          <button onClick={()=>{const url=`https://spokkartan.se/${place.slug||place.id}`;if(navigator.share)navigator.share({title:place.name,text:place.teaser,url}).catch(()=>{});else onShare?.(place.name,url);}} style={{background:"var(--bg3)",border:"1px solid var(--b)",borderRadius:8,padding:"6px 10px",fontSize:12,cursor:"pointer",color:"var(--tx2)"}}>📤</button>
+          <button onClick={()=>{const url=`https://spokkartan.se/${place.slug||place.id}`;if(navigator.share)navigator.share({title:place.name,text:place.teaser,url}).catch(()=>{});else onShare?.(place.name,url);}} style={{background:"var(--bg3)",border:"1px solid var(--b)",borderRadius:8,padding:"6px 10px",fontSize:12,cursor:"pointer",color:"var(--tx2)"}} aria-label="Dela">📤</button>
         </div>
       </div>
 
