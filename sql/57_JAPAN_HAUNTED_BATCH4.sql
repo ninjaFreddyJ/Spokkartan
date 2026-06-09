@@ -66,6 +66,8 @@ INSERT INTO places (id, name, slug, country, region, type, lat, lng, scary, free
 
 Parken är fylld av förfallande animatroniska cowboyfigurer. Byggnaderna "befolkades" en gång av animatroniska gestalter — ett handelsbiträde, en bartender, en Pony Express-anställd — många byggda för att likna kända filmstjärnor, vilket ger den övergivna parken en starkt kuslig Westworld-känsla. Här finns en kopia av Mount Rushmore, en diversehandel, barberare, kyrka, sheriffstation med fängelse och en saloon full av skurkaktiga figurer. Den falska kyrkan var faktiskt äkta — importerad hela vägen från Kalifornien.
 
+När parken till sist stängde 2007 lämnades det mesta kvar på plats, och allt fick stå och förfalla där det stod. Ovanför den öde staden vakar en fullskalig kopia av Mount Rushmore med sina fyra väldiga presidentansikten, numera urblekta och spruckna.
+
 Idag är platsen ett mecka för haikyo-utövare, urban explorers från Japan och hela världen, som dras till den surrealistiska och olycksbådande miljön. De rostiga, leende cowboyrobotarna, frusna mitt i en gest, stirrar tomt ut över en stad som aldrig fanns på riktigt — en spökstad i dubbel bemärkelse, där Vilda västern möter Westworlds mardröm i den japanska skogens tystnad.
 
 Källa: Atlas Obscura + abandonedkansai.com + laughingsquid.com + Lost Collective',
@@ -136,7 +138,9 @@ Parken inrymde en stor katedral, ett hotell, flera teatrar, restauranger och til
 
 Historien blev kort och olycksam. Efter att ha öppnat 1993 stängde parken efter sex år, när banken som finansierade den kollapsade. Den återöppnade efter renovering 2002, men var då igång i bara sex månader innan bristen på besökare tvingade den att stänga på nytt. I april 2004 stängdes portarna för gott.
 
-Sedan dess har platsen lockat både vandaler och äventyrare. En brand skadade det övergivna hotellet svårt, och vandaler slog sönder möbler och förstörde mammutskelettet. Den ödsliga katedralen, med sina lökkupoler resta mot den japanska himlen, blev en surrealistisk syn — ett stycke Ryssland som långsamt förföll på Niigatas landsbygd. Bland urban explorers blev Russian Village ett av Japans mest fotograferade övergivna nöjesparker, innan den till större delen revs omkring 2016.
+Sedan dess har platsen lockat både vandaler och äventyrare. En brand skadade det övergivna hotellet svårt, och vandaler slog sönder möbler och förstörde mammutskelettet. Den ödsliga katedralen, med sina lökkupoler resta mot den japanska himlen, blev en surrealistisk syn — ett stycke Ryssland som långsamt förföll på Niigatas landsbygd. Inne i de tomma teatrarna och restaurangerna stod dukade bord och scendekor kvar och samlade damm, medan snön vintertid yrde in genom krossade fönster och lade sig över de övergivna salarna.
+
+Bland urban explorers blev Russian Village ett av Japans mest fotograferade övergivna nöjesparker, ett sällsynt exempel på rysk arkitektur i Japan som naturen sakta tog tillbaka, innan anläggningen till större delen revs omkring 2016.
 
 Källa: haikyo.org + tokyotimes.org + Atlas Obscura + abandonedkansai.com',
   NULL,NULL,NULL,false,true,'published','web_jp_haunted'
