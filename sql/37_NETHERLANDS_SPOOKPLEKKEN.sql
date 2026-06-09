@@ -40,7 +40,7 @@ Enligt sägnen hade en av nunnorna ett gott förhållande till byborna och bröt
 
 Sedan dess sägs en spöklik gestalt, lik en nunna, vandra runt på Singraven. Hon syns regelbundet sväva ovanför det forsande vattnet vid den gamla vattenkvarnen, och hennes ande ska ha bringat olycka över godsets invånare.
 
-Historiker påpekar att abbedissan knappast hade laglig rätt att verkställa en sådan dödsdom — hon kunde straffa, men i princip inte gå längre än till fängelse, och Singraven var kloster i bara tio år. Sann eller ej är "Non van Singraven" en av Twentes mest kända sägner, levande än idag i teater och folkminne.
+Historiker påpekar att abbedissan knappast hade laglig rätt att verkställa en sådan dödsdom — hon kunde straffa, men i princip inte gå längre än till fängelse, och Singraven var kloster i bara tio år. Sann eller ej är "Non van Singraven" — nunnan från Singraven — en av Twentes mest kända och seglivade sägner, alltjämt levande i teater, böcker och lokalt folkminne, och få vågar vandra ensamma längs Dinkels stränder när skymningen faller över det gamla godset.
 
 Källa: visittwente.nl + reisreport.nl + verhalenbank.nl + Nederländska Wikipedia "Singraven"',
   NULL,NULL,NULL,false,true,'published','web_nl_spookplekken'
