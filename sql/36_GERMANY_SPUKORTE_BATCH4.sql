@@ -20,7 +20,7 @@ INSERT INTO places (id, name, slug, country, region, type, lat, lng, scary, free
 
 Efter kriget, 1945, flyttade Röda armén in och använde idrottsanläggningarna som prestationscentrum för den sovjetiska armésportklubben SASK. Först sommaren 1992 lämnade de sista ryska trupperna byn, som därefter till stora delar lämnades att förfalla.
 
-På grund av sin historiska och arkitektoniska betydelse, och då den hotades av förfall, är området kulturminnesskyddat sedan 1993. De övergivna, vittrande byggnaderna — med igenvuxna gårdar och tomma salar — har blivit en av Berlinområdets mest besökta "lost places", en kuslig kuliss där historiens skuggor vilar tunga. En del av byn har på senare år moderniserats till en trädgårdsstad med stadsradhus, men många huskroppar står ännu öde och tysta.
+På grund av sin historiska och arkitektoniska betydelse, och då den hotades av förfall, är området kulturminnesskyddat sedan 1993. De övergivna, vittrande byggnaderna — med igenvuxna gårdar och tomma salar — har blivit en av Berlinområdets mest besökta "lost places", en kuslig kuliss där historiens skuggor vilar tunga. En del av byn har på senare år moderniserats till en trädgårdsstad med stadsradhus, men många huskroppar står ännu öde och tysta. Bland de övergivna byggnaderna finns det runda matsalshuset, simhallen och idrottarnas boningar, där putsen flagnar och naturen långsamt tar tillbaka korridorerna — en plats som drar till sig både historieintresserade och de som söker det olycksbådande i tystnaden efter ett av historiens mest laddade idrottsspel.
 
 Källa: verlassenes.de + berlinstaiga.de + t-online.de + geschichtsspuren.de',
   NULL,NULL,NULL,false,true,'published','web_de_spukorte'
