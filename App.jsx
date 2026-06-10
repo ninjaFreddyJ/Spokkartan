@@ -1,7 +1,7 @@
 
 // SPÖKKARTAN v7 — Mobile-first, working auth, clean navigation
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { fetchPlaces, subscribeToPlaces, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut as supabaseSignOut, getProfile, onAuthChange, getSession, fetchPartners, createPartner, fetchPartnerPackages, submitPartnerQuestion, fetchPartnerQuestions, updatePartnerQuestion, fetchHunters, fetchHunterVisits, updateHunterProfile, upsertHunterVisit, createHunterOrder } from "./supabase";
+import { fetchPlaces, subscribeToPlaces, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut as supabaseSignOut, getProfile, onAuthChange, getSession, fetchPartners, createPartner, fetchPartnerPackages, submitPartnerQuestion, fetchPartnerQuestions, updatePartnerQuestion, fetchHunters, fetchHunterVisits, updateHunterProfile, upsertHunterVisit, createHunterOrder, submitPlaceSuggestion, fetchPlaceSuggestions, updatePlaceSuggestion, deletePlaceSuggestion } from "./supabase";
 import { useLang, LANGS } from "./lang";
 import { applyMeta, applyHreflang, applyCanonical, applyPlaceJsonLd, applySiteJsonLd, getMeta, getPlaceMeta, parsePath, buildPath, pushPath, getOrigin } from "./seo";
 
@@ -1842,6 +1842,15 @@ function AdminDash({allPlaces,setAllPlaces,user,onLogout}) {
     {id:2,text:"Sök efter hemsökta hotell i Australien och Nya Zeeland",done:false,ts:"2026-04-22"},
   ]);
   const [scraperQueue,setScraperQueue]=useState(SCRAPER_QUEUE);
+  const [suggestions,setSuggestions]=useState([]);
+  const [sugLoading,setSugLoading]=useState(false);
+  const SUG_LABEL={new:"Ny",reviewing:"Granskas",approved:"Godkänd",rejected:"Avvisad",published:"Publicerad"};
+  const SUG_COL={new:{bg:"rgba(251,191,36,0.15)",c:"#fbbf24"},reviewing:{bg:"rgba(96,165,250,0.15)",c:"#60a5fa"},approved:{bg:"rgba(52,211,153,0.15)",c:"#34d399"},rejected:{bg:"rgba(248,113,113,0.15)",c:"#f87171"},published:{bg:"rgba(167,139,250,0.15)",c:"#a78bfa"}};
+  async function loadSuggestions(){ setSugLoading(true); try{ setSuggestions(await fetchPlaceSuggestions()); }catch(e){ console.error(e); } setSugLoading(false); }
+  async function setSugStatus(id,status){ try{ await updatePlaceSuggestion(id,{status}); setSuggestions(prev=>prev.map(x=>x.id===id?{...x,status}:x)); }catch(e){ console.error(e); } }
+  async function removeSug(id){ try{ await deletePlaceSuggestion(id); setSuggestions(prev=>prev.filter(x=>x.id!==id)); }catch(e){ console.error(e); } }
+  useEffect(()=>{ loadSuggestions(); },[]);
+  const newSug=suggestions.filter(s=>s.status==="new").length;
 
   const pub=allPlaces.filter(p=>p.status==="published");
   const drafts=allPlaces.filter(p=>p.status==="draft");
@@ -1867,7 +1876,7 @@ function AdminDash({allPlaces,setAllPlaces,user,onLogout}) {
     setInstruction("");
   }
 
-  const TABS=[["overview","📊","Översikt"],["places","📍","Platser"],["scraper","🔍","Scraper"],["users","👤","Användare"],["settings","⚙️","Inställningar"]];
+  const TABS=[["overview","📊","Översikt"],["places","📍","Platser"],["suggestions","📥","Förslag"],["scraper","🔍","Scraper"],["users","👤","Användare"],["settings","⚙️","Inställningar"]];
 
   return(
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
@@ -1879,6 +1888,7 @@ function AdminDash({allPlaces,setAllPlaces,user,onLogout}) {
             <button key={v} onClick={()=>setTab(v)} style={{background:tab===v?"#7c3aed":"transparent",border:"none",borderRadius:7,padding:"6px 10px",fontSize:11,fontWeight:600,color:tab===v?"#fff":"var(--tx3)",cursor:"pointer",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:4}}>
               {icon}<span className="resp-label">{label}</span>
               {v==="scraper"&&newScrapes.length>0&&<span style={{background:"#fbbf24",borderRadius:"50%",width:14,height:14,display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:8,fontWeight:700,color:"#000"}}>{newScrapes.length}</span>}
+              {v==="suggestions"&&newSug>0&&<span style={{background:"#fbbf24",borderRadius:"50%",minWidth:14,height:14,padding:"0 3px",display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:8,fontWeight:700,color:"#000"}}>{newSug}</span>}
             </button>
           ))}
         </div>
@@ -1901,6 +1911,7 @@ function AdminDash({allPlaces,setAllPlaces,user,onLogout}) {
                 ["Platser",allPlaces.length,"📍","#a78bfa"],
                 ["Live",pub.length,"✅","#34d399"],
                 ["Utkast",drafts.length,"📝","#fbbf24"],
+                ["Förslag",suggestions.length,"📥","#fbbf24"],
                 ["Användare",allUsers.length,"👤","#60a5fa"],
                 ["PRO",proUsers.length,"💎","#d4af37"],
                 ["Jägare",hunterUsers.length,"🔍","#f472b6"],
@@ -1987,6 +1998,41 @@ function AdminDash({allPlaces,setAllPlaces,user,onLogout}) {
                 </table>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* ── SUGGESTIONS INBOX ── */}
+        {tab==="suggestions"&&(
+          <div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:8}}>
+              <div style={{fontSize:13,fontWeight:700,color:"var(--tx)"}}>📥 Inkorg — platsförslag {newSug>0&&<span style={{color:"#fbbf24"}}>· {newSug} nya</span>}</div>
+              <Btn ch="↻ Uppdatera" v="ghost" sz="sm" onClick={loadSuggestions}/>
+            </div>
+            {sugLoading?(
+              <div style={{fontSize:12,color:"var(--tx3)",padding:"20px",textAlign:"center"}}>Laddar…</div>
+            ):suggestions.length===0?(
+              <div style={{background:"var(--card)",border:"1px solid var(--b)",borderRadius:12,padding:"28px 16px",textAlign:"center"}}>
+                <div style={{fontSize:28,marginBottom:6}}>📭</div>
+                <div style={{fontSize:13,fontWeight:600,color:"var(--tx2)",marginBottom:4}}>Inga förslag än</div>
+                <div style={{fontSize:11,color:"var(--tx3)",lineHeight:1.5}}>Användarnas tips via "➕ Föreslå" dyker upp här. Kräver att <code>61_PLACE_SUGGESTIONS.sql</code> körts i Supabase.</div>
+              </div>
+            ):suggestions.map(s=>(
+              <div key={s.id} style={{background:"var(--card)",border:"1px solid var(--b)",borderRadius:12,padding:"13px 15px",marginBottom:10}}>
+                <div style={{display:"flex",justifyContent:"space-between",gap:10,marginBottom:6,alignItems:"flex-start"}}>
+                  <div style={{fontSize:14,fontWeight:700,color:"var(--tx)"}}>{(FLAG[s.country]||"🌍")+" "+s.name}</div>
+                  <span style={{fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:6,whiteSpace:"nowrap",flexShrink:0,background:(SUG_COL[s.status]||{}).bg||"var(--bg3)",color:(SUG_COL[s.status]||{}).c||"var(--tx3)"}}>{SUG_LABEL[s.status]||s.status}</span>
+                </div>
+                <div style={{fontSize:11,color:"var(--tx3)",marginBottom:6}}>{[s.country,s.region,s.type].filter(Boolean).join(" · ")}{s.lat?` · 📍 ${s.lat}, ${s.lng}`:""}</div>
+                {s.why&&<div style={{fontSize:12,color:"var(--tx2)",lineHeight:1.5,marginBottom:6}}>{s.why}</div>}
+                <div style={{fontSize:10,color:"var(--tx4)",marginBottom:9}}>{s.submitter_name||"Anonym"}{s.submitter_email?" · "+s.submitter_email:""} · {(s.created_at||"").slice(0,10)}</div>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                  {["reviewing","approved","rejected"].map(st=>(
+                    <button key={st} onClick={()=>setSugStatus(s.id,st)} style={{padding:"5px 10px",borderRadius:8,fontSize:10,fontWeight:700,cursor:"pointer",border:"1px solid var(--b)",background:s.status===st?"#7c3aed":"var(--bg3)",color:s.status===st?"#fff":"var(--tx3)"}}>{SUG_LABEL[st]}</button>
+                  ))}
+                  <button onClick={()=>removeSug(s.id)} style={{padding:"5px 10px",borderRadius:8,fontSize:10,fontWeight:700,cursor:"pointer",border:"1px solid var(--b)",background:"var(--bg3)",color:"#f87171",marginLeft:"auto"}}>🗑️ Radera</button>
+                </div>
+              </div>
+            ))}
           </div>
         )}
 
@@ -2260,6 +2306,75 @@ function NotificationModal({user,prefs,setPrefs,onClose}) {
           ))}
           {perm==="denied"&&<div style={{fontSize:11,color:"#fbbf24",marginTop:6,lineHeight:1.5}}>⚠️ Aviseringar är blockerade i din webbläsare. Öppna webbläsarens inställningar för Spökkartan och tillåt notiser, ladda sedan om sidan.</div>}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ── SUGGEST A PLACE MODAL ─────────────────────────────────────
+function SuggestPlaceModal({user,onClose}) {
+  const [f,setF]=useState({name:"",country:"",region:"",type:"",lat:"",lng:"",why:"",submitter_name:user?.name||"",submitter_email:user?.email||""});
+  const [state,setState]=useState("form"); // form | sending | done
+  const [err,setErr]=useState("");
+  const upd=(k,v)=>setF(p=>({...p,[k]:v}));
+  const lbl={fontSize:10,fontWeight:600,color:"var(--tx3)",marginBottom:3,display:"block"};
+  async function submit(){
+    if(!f.name.trim()){setErr("Fyll i platsens namn.");return;}
+    setState("sending");setErr("");
+    try{
+      await submitPlaceSuggestion({
+        name:f.name.trim(),country:f.country.trim()||null,region:f.region.trim()||null,
+        type:f.type.trim()||null,
+        lat:f.lat?Number(f.lat):null,lng:f.lng?Number(f.lng):null,
+        why:f.why.trim()||null,
+        submitter_name:f.submitter_name.trim()||null,submitter_email:f.submitter_email.trim()||null,
+      });
+      setState("done");
+    }catch(e){ setErr(e.message||"Något gick fel — försök igen."); setState("form"); }
+  }
+  return(
+    <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+      <div className="modal-sheet au" style={{maxHeight:"90vh",overflowY:"auto"}}>
+        <div className="modal-handle"/>
+        <button onClick={onClose} style={{position:"absolute",top:14,right:14,background:"none",border:"none",color:"var(--tx3)",cursor:"pointer",fontSize:20}}>✕</button>
+        {state==="done"?(
+          <div style={{textAlign:"center",padding:"18px 4px"}}>
+            <div style={{fontSize:40,marginBottom:8}}>👻</div>
+            <div style={{fontSize:18,fontWeight:800,color:"var(--tx)",marginBottom:6}}>Tack för ditt tips!</div>
+            <div style={{fontSize:13,color:"var(--tx3)",lineHeight:1.6,marginBottom:18}}>Vi kollar upp platsen, kompletterar med exakta koordinater, mer historik och en gratisbild om det finns — och lägger sedan till den på kartan.</div>
+            <button onClick={onClose} style={{padding:"11px 20px",borderRadius:10,border:"none",background:"var(--acc)",color:"#fff",fontWeight:700,fontSize:13,cursor:"pointer"}}>Stäng</button>
+          </div>
+        ):(<>
+          <div style={{textAlign:"center",marginBottom:14}}>
+            <div style={{fontSize:30,marginBottom:4}}>📍</div>
+            <div style={{fontSize:17,fontWeight:800,color:"var(--tx)"}}>Föreslå en hemsökt plats</div>
+            <div style={{fontSize:12,color:"var(--tx3)",marginTop:4,lineHeight:1.6}}>Känner du till en spökplats som saknas? Tipsa oss — du behöver bara namnet, resten fyller vi i.</div>
+          </div>
+          <div style={{marginBottom:10}}><label style={lbl}>Platsens namn *</label><input className="inp" value={f.name} onChange={e=>upd("name",e.target.value)} placeholder="t.ex. Borgvattnets prästgård"/></div>
+          <div style={{display:"flex",gap:8,marginBottom:10}}>
+            <div style={{flex:1}}><label style={lbl}>Land</label><input className="inp" value={f.country} onChange={e=>upd("country",e.target.value)} placeholder="Sverige"/></div>
+            <div style={{flex:1}}><label style={lbl}>Region/ort</label><input className="inp" value={f.region} onChange={e=>upd("region",e.target.value)} placeholder="Jämtland"/></div>
+          </div>
+          <div style={{marginBottom:10}}><label style={lbl}>Typ (valfritt)</label><input className="inp" value={f.type} onChange={e=>upd("type",e.target.value)} placeholder="Prästgård, slott, fängelse…"/></div>
+          <div style={{marginBottom:10}}><label style={lbl}>Varför är platsen hemsökt? (valfritt)</label><textarea className="inp" rows={3} value={f.why} onChange={e=>upd("why",e.target.value)} placeholder="Kort om sägnen, spökerier eller historik…" style={{resize:"none"}}/></div>
+          <details style={{marginBottom:10}}>
+            <summary style={{fontSize:11,color:"var(--tx3)",cursor:"pointer"}}>Vet du koordinaterna? (valfritt)</summary>
+            <div style={{display:"flex",gap:8,marginTop:8}}>
+              <div style={{flex:1}}><label style={lbl}>Latitud</label><input className="inp" value={f.lat} onChange={e=>upd("lat",e.target.value)} placeholder="63.123"/></div>
+              <div style={{flex:1}}><label style={lbl}>Longitud</label><input className="inp" value={f.lng} onChange={e=>upd("lng",e.target.value)} placeholder="15.456"/></div>
+            </div>
+          </details>
+          <div style={{display:"flex",gap:8,marginBottom:12}}>
+            <div style={{flex:1}}><label style={lbl}>Ditt namn (valfritt)</label><input className="inp" value={f.submitter_name} onChange={e=>upd("submitter_name",e.target.value)}/></div>
+            <div style={{flex:1}}><label style={lbl}>Din e-post (valfritt)</label><input className="inp" value={f.submitter_email} onChange={e=>upd("submitter_email",e.target.value)} placeholder="för återkoppling"/></div>
+          </div>
+          <div style={{background:"rgba(124,58,237,0.06)",border:"1px solid rgba(124,58,237,0.2)",borderRadius:10,padding:"10px 13px",marginBottom:14}}>
+            <div style={{fontSize:11,fontWeight:700,color:"var(--tx)",marginBottom:5}}>Tips för ett bra förslag</div>
+            <div style={{fontSize:11,color:"var(--tx2)",lineHeight:1.6}}>• Skriv platsens riktiga namn och ort så hittar vi rätt.<br/>• En mening om sägnen hjälper oss skriva texten.<br/>• Vi verifierar koordinater och letar gratisbilder själva.</div>
+          </div>
+          {err&&<div style={{fontSize:12,color:"#f87171",marginBottom:10}}>{err}</div>}
+          <button disabled={state==="sending"} onClick={submit} style={{width:"100%",padding:"13px",borderRadius:11,border:"none",background:"var(--acc)",color:"#fff",fontWeight:700,fontSize:14,cursor:state==="sending"?"default":"pointer",opacity:state==="sending"?0.6:1}}>{state==="sending"?"Skickar…":"Skicka tips 👻"}</button>
+        </>)}
       </div>
     </div>
   );
@@ -3404,6 +3519,7 @@ export default function App() {
   const [showPro,setShowPro]=useState(false);
   const [showBecomePartner,setShowBecomePartner]=useState(false);
   const [showNotif,setShowNotif]=useState(false);
+  const [showSuggest,setShowSuggest]=useState(false);
   const [notifPrefs,setNotifPrefs]=useState(()=>{
     const d={enabled:false,types:["new_place","new_hotel"],countries:["Sverige","Norge"],placeTypes:["Alla typer"],minScary:0,frequency:"weekly"};
     try{const s=typeof localStorage!=="undefined"&&localStorage.getItem("spokkartan_notif_prefs");return s?{...d,...JSON.parse(s)}:d;}catch{return d;}
@@ -3507,6 +3623,7 @@ export default function App() {
           <span style={{fontSize:14,fontWeight:800,color:"var(--tx)"}}>Spökkartan</span>
         </button>
         <div style={{flex:1}}/>
+        <button onClick={()=>setShowSuggest(true)} title="Föreslå en plats" style={{background:"var(--bg3)",border:"1px solid var(--b)",borderRadius:9,padding:"6px 10px",cursor:"pointer",fontSize:13,fontWeight:600,color:"var(--tx2)",display:"flex",alignItems:"center",gap:4,flexShrink:0}}>➕<span className="resp-label">Föreslå</span></button>
         {user?(
           <div style={{display:"flex",gap:6,alignItems:"center"}}>
             <button onClick={()=>setShowNotif(true)} style={{background:notifPrefs.enabled?"rgba(124,58,237,0.15)":"var(--bg3)",border:`1px solid ${notifPrefs.enabled?"var(--acc)":"var(--b)"}`,borderRadius:9,padding:"6px 9px",cursor:"pointer",fontSize:14,position:"relative"}}>
@@ -3685,6 +3802,8 @@ export default function App() {
 
       {/* NOTIFICATION MODAL */}
       {showNotif&&<NotificationModal user={user} prefs={notifPrefs} setPrefs={setNotifPrefs} onClose={()=>setShowNotif(false)}/>}
+      {/* SUGGEST PLACE MODAL */}
+      {showSuggest&&<SuggestPlaceModal user={user} onClose={()=>setShowSuggest(false)}/>}
 
       {/* AUTH MODAL */}
       {auth&&<AuthModal initMode={auth} onClose={()=>setAuth(null)} onSuccess={u=>{setUser(u);setIsPro(u.pro||false);setAuth(null);if(u.role==="admin")setView("admin");}}/>}

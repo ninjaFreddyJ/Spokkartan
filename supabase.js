@@ -62,6 +62,36 @@ export function subscribeToPlaces(callback) {
   return () => supabase.removeChannel(channel);
 }
 
+// ── PLATSFÖRSLAG (Föreslå plats → inkorg) ──────────────────
+
+export async function submitPlaceSuggestion(payload) {
+  // payload: { name, country, region, type, lat?, lng?, description?, why?, submitter_name?, submitter_email? }
+  const { data: { user } } = await supabase.auth.getUser();
+  const row = { ...payload, user_id: user?.id || null, status: 'new' };
+  const { data, error } = await supabase.from('place_suggestions').insert(row).select().maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function fetchPlaceSuggestions({ status } = {}) {
+  let q = supabase.from('place_suggestions').select('*').order('created_at', { ascending: false });
+  if (status) q = q.eq('status', status);
+  const { data, error } = await q;
+  if (error) { console.error('[Spokkartan] fetchPlaceSuggestions:', error.message); return []; }
+  return data || [];
+}
+
+export async function updatePlaceSuggestion(id, updates) {
+  const { data, error } = await supabase.from('place_suggestions').update(updates).eq('id', id).select().maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function deletePlaceSuggestion(id) {
+  const { error } = await supabase.from('place_suggestions').delete().eq('id', id);
+  if (error) throw error;
+}
+
 // ── AUTH ────────────────────────────────────────────────────
 
 export async function signInWithGoogle() {
