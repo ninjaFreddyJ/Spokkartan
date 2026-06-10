@@ -2,6 +2,13 @@
   "rewrites": [
     { "source": "/sitemap.xml", "destination": "/api/sitemap.xml" },
     { "source": "/robots.txt", "destination": "/robots.txt" },
+    {
+      "source": "/:lang(sv|en|de|no|da)/:seg(plats|place|ort|sted)/:slug",
+      "has": [
+        { "type": "header", "key": "user-agent", "value": ".*(facebookexternalhit|Facebot|Twitterbot|WhatsApp|Slackbot|LinkedInBot|Discordbot|TelegramBot|Pinterest|redditbot|Embedly|vkShare|Applebot|Googlebot).*" }
+      ],
+      "destination": "/api/og?slug=:slug&lang=:lang"
+    },
     { "source": "/(.*)", "destination": "/" }
   ],
   "headers": [
