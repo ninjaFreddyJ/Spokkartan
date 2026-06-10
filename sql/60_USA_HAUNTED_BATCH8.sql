@@ -53,7 +53,7 @@ Efter att antibiotikan streptomycin införts 1943 minskade tuberkulosfallen, och
 
 Sjukhusets mörkaste symbol är "the body chute" — liktunneln — en lång underjordisk gång som användes för att i hemlighet föra ut de döda, så att de levande patienterna inte skulle se hur många som dukade under. Efter decennier av lidande och död räknas Waverly Hills idag som en av världens mest hemsökta byggnader.
 
-Besökare berättar ofta om plötsliga kalla fläckar, kroppslösa röster som ropar på hjälp och samtal från osynliga källor. Mest ökänt är rum 502, dit sjuksköterskor förr drog sig undan när de själva insjuknade — och där en sjuksköterska enligt sägnen tog sitt liv. Idag erbjuds historiska turer och paranormala nattvandringar i de förfallande, ekande korridorerna.
+Besökare berättar ofta om plötsliga kalla fläckar, kroppslösa röster som ropar på hjälp och samtal från osynliga källor. Mest ökänt är rum 502, dit sjuksköterskor förr drog sig undan när de själva insjuknade — och där en sjuksköterska enligt sägnen tog sitt liv. Många besökare berättar också om en liten pojke vid namn Timmy som sägs leka i korridorerna, och om en skuggestalt som rör sig längs väggarna. Idag erbjuds historiska turer och paranormala nattvandringar i de förfallande, ekande korridorerna, och tv-program som Ghost Hunters har gjort platsen världsberömd.
 
 Källa: Engelska Wikipedia "Waverly Hills Sanatorium" + americanhauntingsink.com + usghostadventures.com + thelittlehouseofhorrors.com',
   NULL,NULL,NULL,false,true,'published','web_us_haunted'
@@ -155,7 +155,7 @@ Andrews dotter Lizzie Borden åtalades för morden men frikändes 1893 av en fö
 
 Huset, som idag drivs som värdshus och museum, kallas av många USA:s mest hemsökta. Gäster och personal berättar om underliga viskningar, skuggestalter och spöklika steg. Bland rapporterna finns spökkatter, uppenbarelser, gungstolar som gungar av sig själva — och Lizzie själv, som sägs ännu hemsöka huset och ta kvävtag på gäster som lägger sig i hennes säng.
 
-Värdshuset erbjuder två sviter och fyra rum för uthyrning, och det rum där styvmodern Abby Borden hittades mördad är det mest efterfrågade. Huset är öppet dagligen från klockan tio på förmiddagen till midnatt, med historiska turer, spökturer och nattliga spökjakter. För den som vågar tillbringa natten på mordplatsen väntar en av landets mest skräckinjagande övernattningar.
+Värdshuset erbjuder två sviter och fyra rum för uthyrning, och det rum där styvmodern Abby Borden hittades mördad är det mest efterfrågade. Frukosten speglar dessutom det som familjen Borden åt den ödesdigra morgonen. Huset är öppet dagligen från klockan tio på förmiddagen till midnatt, med historiska turer, spökturer och nattliga spökjakter. För den som vågar tillbringa natten på mordplatsen, i samma rum där yxan föll, väntar en av landets mest skräckinjagande övernattningar.
 
 Källa: Engelska Wikipedia "Lizzie Borden House" + lizzie-borden.com + usghostadventures.com + bostonghosts.com',
   NULL,NULL,NULL,false,true,'published','web_us_haunted'
