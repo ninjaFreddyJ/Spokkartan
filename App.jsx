@@ -2185,6 +2185,86 @@ function ShareMenu({title,url,onClose}) {
   );
 }
 
+// ── NOTIFICATION MODAL ────────────────────────────────────────
+function NotificationModal({user,prefs,setPrefs,onClose}) {
+  const [perm,setPerm]=useState(typeof Notification!=="undefined"?Notification.permission:"unsupported");
+  const COUNTRIES=["Sverige","Norge","Danmark","Finland","Tyskland","UK","USA","Italien","Nederländerna","Japan","Australien"];
+  const FREQ=[["instant","Direkt"],["daily","Dagligen"],["weekly","Veckovis"]];
+
+  function save(next){
+    setPrefs(next);
+    try{localStorage.setItem("spokkartan_notif_prefs",JSON.stringify(next));}catch{}
+  }
+  function toggleCountry(c){
+    const has=prefs.countries.includes(c);
+    save({...prefs,countries:has?prefs.countries.filter(x=>x!==c):[...prefs.countries,c]});
+  }
+  async function enable(){
+    if(typeof Notification==="undefined"){save({...prefs,enabled:true});return;}
+    try{
+      const res=await Notification.requestPermission();
+      setPerm(res);
+      if(res==="granted"){
+        save({...prefs,enabled:true});
+        try{new Notification("Spökkartan",{body:"Notiser på! Du får ett pling när nya hemsökta platser dyker upp. 👻"});}catch{}
+      }
+    }catch{ save({...prefs,enabled:true}); }
+  }
+  function disable(){ save({...prefs,enabled:false}); }
+
+  const pill=(on)=>({padding:"6px 11px",borderRadius:20,fontSize:12,fontWeight:600,cursor:"pointer",border:"1px solid "+(on?"var(--acc)":"var(--b)"),background:on?"rgba(124,58,237,0.15)":"var(--bg3)",color:on?"var(--acc)":"var(--tx3)"});
+
+  return(
+    <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+      <div className="modal-sheet au" style={{maxHeight:"88vh",overflowY:"auto"}}>
+        <div className="modal-handle"/>
+        <button onClick={onClose} style={{position:"absolute",top:14,right:14,background:"none",border:"none",color:"var(--tx3)",cursor:"pointer",fontSize:20}}>✕</button>
+        <div style={{textAlign:"center",marginBottom:14}}>
+          <div style={{fontSize:34,marginBottom:6}}>🔔</div>
+          <div style={{fontSize:17,fontWeight:800,color:"var(--tx)"}}>Notiser</div>
+          <div style={{fontSize:12,color:"var(--tx3)",marginTop:4,lineHeight:1.6}}>Få ett pling när nya hemsökta platser läggs till i de länder och kategorier du följer.</div>
+        </div>
+
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:"var(--card)",border:"1px solid var(--b)",borderRadius:12,padding:"13px 15px",marginBottom:14}}>
+          <div style={{flex:1,paddingRight:10}}>
+            <div style={{fontSize:13,fontWeight:700,color:"var(--tx)"}}>{prefs.enabled?"Notiser är på":"Notiser är av"}</div>
+            <div style={{fontSize:11,color:"var(--tx3)",marginTop:2,lineHeight:1.4}}>{perm==="denied"?"Blockerat i webbläsaren — tillåt notiser i webbläsarinställningarna":prefs.enabled?"Du får aviseringar om nya platser":"Slå på för att börja få aviseringar"}</div>
+          </div>
+          {prefs.enabled
+            ?<button onClick={disable} style={{padding:"8px 14px",borderRadius:10,border:"1px solid var(--b)",background:"var(--bg3)",color:"var(--tx2)",fontWeight:700,fontSize:12,cursor:"pointer",flexShrink:0}}>Stäng av</button>
+            :<button onClick={enable} style={{padding:"8px 16px",borderRadius:10,border:"none",background:"var(--acc)",color:"#fff",fontWeight:700,fontSize:12,cursor:"pointer",flexShrink:0}}>Slå på</button>}
+        </div>
+
+        {prefs.enabled&&(<>
+          <div style={{fontSize:11,fontWeight:700,color:"var(--tx3)",letterSpacing:0.5,marginBottom:7}}>LÄNDER ATT FÖLJA</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:16}}>
+            {COUNTRIES.map(c=>(
+              <button key={c} onClick={()=>toggleCountry(c)} style={pill(prefs.countries.includes(c))}>{(FLAG[c]||"🌍")+" "+c}</button>
+            ))}
+          </div>
+          <div style={{fontSize:11,fontWeight:700,color:"var(--tx3)",letterSpacing:0.5,marginBottom:7}}>HUR OFTA</div>
+          <div style={{display:"flex",gap:6,marginBottom:16}}>
+            {FREQ.map(([v,l])=>(
+              <button key={v} onClick={()=>save({...prefs,frequency:v})} style={pill(prefs.frequency===v)}>{l}</button>
+            ))}
+          </div>
+        </>)}
+
+        <div style={{background:"rgba(124,58,237,0.06)",border:"1px solid rgba(124,58,237,0.2)",borderRadius:12,padding:"13px 15px"}}>
+          <div style={{fontSize:12,fontWeight:700,color:"var(--tx)",marginBottom:9}}>Så slår du på notiser</div>
+          {[["1","Tryck på “Slå på” ovan."],["2","Välj “Tillåt” när webbläsaren frågar om aviseringar."],["3","Välj vilka länder du vill följa — klart!"]].map(([n,txt])=>(
+            <div key={n} style={{display:"flex",gap:10,alignItems:"flex-start",marginBottom:7}}>
+              <span style={{flexShrink:0,width:18,height:18,borderRadius:"50%",background:"var(--acc)",color:"#fff",fontSize:10,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center"}}>{n}</span>
+              <span style={{fontSize:12,color:"var(--tx2)",lineHeight:1.5}}>{txt}</span>
+            </div>
+          ))}
+          {perm==="denied"&&<div style={{fontSize:11,color:"#fbbf24",marginTop:6,lineHeight:1.5}}>⚠️ Aviseringar är blockerade i din webbläsare. Öppna webbläsarens inställningar för Spökkartan och tillåt notiser, ladda sedan om sidan.</div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── CANCEL SUBSCRIPTION MODAL ─────────────────────────────────
 function CancelSubModal({onClose,onConfirm}) {
   const [reason,setReason]=useState("");
@@ -3324,7 +3404,10 @@ export default function App() {
   const [showPro,setShowPro]=useState(false);
   const [showBecomePartner,setShowBecomePartner]=useState(false);
   const [showNotif,setShowNotif]=useState(false);
-  const [notifPrefs,setNotifPrefs]=useState({enabled:false,types:["new_place","new_hotel"],countries:["Sverige","Norge"],placeTypes:["Alla typer"],minScary:0,frequency:"weekly"});
+  const [notifPrefs,setNotifPrefs]=useState(()=>{
+    const d={enabled:false,types:["new_place","new_hotel"],countries:["Sverige","Norge"],placeTypes:["Alla typer"],minScary:0,frequency:"weekly"};
+    try{const s=typeof localStorage!=="undefined"&&localStorage.getItem("spokkartan_notif_prefs");return s?{...d,...JSON.parse(s)}:d;}catch{return d;}
+  });
 
   const [shareData,setShareData]=useState(null);
   const [showCancel,setShowCancel]=useState(false);
