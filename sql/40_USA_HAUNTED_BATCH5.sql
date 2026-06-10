@@ -14,7 +14,7 @@ BEGIN;
 
 -- 1. RMS QUEEN MARY (USA) — det hemsökta skeppet
 INSERT INTO places (id, name, slug, country, region, type, lat, lng, scary, free, bookable, booking_url, teaser, description, img, img_credit, img_author, featured, is_new, status, source) VALUES (
-  'rms-queen-mary','RMS Queen Mary','rms-queen-mary','USA','Kalifornien, Long Beach','Fartyg',
+  'queen-mary-long-beach','RMS Queen Mary','queen-mary-long-beach','USA','Kalifornien, Long Beach','Fartyg',
   33.7522,-118.1903,3,false,true,NULL,
   'Lyxångaren med över 150 andar — i hytt B340 dras täcken av nybäddade sängar.',
   'RMS Queen Mary, en gång världens lyxigaste oceanångare, tjänade som trupptransport under andra världskriget och ligger sedan dess permanent förtöjd i Long Beach i Kalifornien — idag ett av USA:s mest omtalat hemsökta fartyg. Skeppet sägs hysa över 150 andar, och både personal och besökare rapporterar regelbundet om vad som kan vara paranormal aktivitet.

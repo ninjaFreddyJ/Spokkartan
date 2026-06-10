@@ -130,7 +130,7 @@ Källa: loreley-felsen.de + rheinreise.com + reisenexclusiv.com + Goethe-Institu
 
 -- 7. BEELITZ-HEILSTÄTTEN (Tyskland) — den övergivna kliniken
 INSERT INTO places (id, name, slug, country, region, type, lat, lng, scary, free, bookable, booking_url, teaser, description, img, img_credit, img_author, featured, is_new, status, source) VALUES (
-  'beelitz-heilstaetten','Beelitz-Heilstätten','beelitz-heilstaetten','Tyskland','Brandenburg, Beelitz','Sanatorium',
+  'beelitz-heilstatten','Beelitz-Heilstätten','beelitz-heilstatten','Tyskland','Brandenburg, Beelitz','Sanatorium',
   52.2700,12.9230,4,false,true,NULL,
   'Tysklands mest beryktade lost place — steg i tomma korridorer och dörrar som öppnas av sig själva.',
   'Beelitz-Heilstätten ligger i skogarna i Fläming söder om Berlin, i Brandenburg. Anläggningen byggdes mellan 1898 och 1902 och bestod av omkring 60 byggnader på cirka 200 hektar. I slutet av 1800-talet var tuberkulos en mycket smittsam sjukdom som dödade nära hälften av de 15–40-åriga i storstäder som Berlin, och Beelitz uppfördes som ett lungsanatorium för stadens arbetare.

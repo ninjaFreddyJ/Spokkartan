@@ -47,7 +47,7 @@ Källa: Legends of America + usghostadventures.com + amyscrypt.com + Atlas Obscu
 
 -- 3. WHALEY HOUSE (USA) — Yankee Jims tunga steg
 INSERT INTO places (id, name, slug, country, region, type, lat, lng, scary, free, bookable, booking_url, teaser, description, img, img_credit, img_author, featured, is_new, status, source) VALUES (
-  'whaley-house','Whaley House','whaley-house','USA','Kalifornien, San Diego','Hus',
+  'whaley-house-san-diego','Whaley House','whaley-house-san-diego','USA','Kalifornien, San Diego','Hus',
   32.7510,-117.1950,3,false,true,NULL,
   'Byggt på galgbacken där Yankee Jim hängdes — hans tunga steg ekar än i tegelhuset.',
   'Whaley House i Old Town i San Diego, Kalifornien, byggdes 1857 av Thomas Whaley och är den äldsta tegelbyggnaden i södra Kalifornien. Genom åren tjänade huset som familjebostad, domstol och teater — men dess mörka rykte går längre tillbaka än så.

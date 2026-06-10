@@ -10,7 +10,7 @@ BEGIN;
 
 -- 1. THE STANLEY HOTEL — The Shinings födelseplats
 INSERT INTO places (id, name, slug, country, region, type, lat, lng, scary, free, bookable, booking_url, teaser, description, img, img_credit, img_author, featured, is_new, status, source) VALUES (
-  'stanley-hotel','The Stanley Hotel','stanley-hotel','USA','Colorado, Estes Park','Hotell',
+  'the-stanley-hotel','The Stanley Hotel','the-stanley-hotel','USA','Colorado, Estes Park','Hotell',
   40.3828,-105.5217,4,false,true,NULL,
   'Här drömde Stephen King fram The Shining i rum 217 — där en husa ännu sägs dröja kvar.',
   'Stanley Hotel i Estes Park i Colorado är ett 140-rums hotell i georgiansk stil, omkring åtta kilometer från Rocky Mountain National Park, och räknas som ett av Amerikas mest hemsökta hotell. Det byggdes av Freelan Oscar Stanley, delägare i Stanley Motor Carriage Company, och öppnade den 4 juli 1909 som lyxresort och hälsohem för lungtuberkulos.
@@ -95,7 +95,7 @@ Källa: Engelska Wikipedia "Legends of Myrtles Plantation" + themoonlitroad.com 
 
 -- 6. LALAURIE MANSION — New Orleans ondskefullaste hus
 INSERT INTO places (id, name, slug, country, region, type, lat, lng, scary, free, bookable, booking_url, teaser, description, img, img_credit, img_author, featured, is_new, status, source) VALUES (
-  'lalaurie-mansion','LaLaurie Mansion','lalaurie-mansion','USA','Louisiana, New Orleans','Herrgård',
+  'lalaurie-mansion-new-orleans','LaLaurie Mansion','lalaurie-mansion-new-orleans','USA','Louisiana, New Orleans','Herrgård',
   29.9595,-90.0637,4,true,false,NULL,
   'Branden 1834 blottade torterade slavar på vinden — de plågades skrik sägs ännu eka i kvarteret.',
   'LaLaurie Mansion på 1140 Royal Street i New Orleans franska kvarter räknas som en av stadens mest hemsökta — och ondskefulla — byggnader. Den uppfördes 1832 av societetsdamen Madame Delphine LaLaurie, som i hemlighet torterade och mördade förslavade människor i sitt hushåll.
@@ -112,7 +112,7 @@ Källa: Engelska Wikipedia "Delphine LaLaurie" + ghostcitytours.com + frenchquar
 
 -- 7. TRANS-ALLEGHENY LUNATIC ASYLUM — lobotomiprojektets hem
 INSERT INTO places (id, name, slug, country, region, type, lat, lng, scary, free, bookable, booking_url, teaser, description, img, img_credit, img_author, featured, is_new, status, source) VALUES (
-  'trans-allegheny-asylum','Trans-Allegheny Lunatic Asylum','trans-allegheny-asylum','USA','West Virginia, Weston','Asyl',
+  'trans-allegheny-lunatic-asylum','Trans-Allegheny Lunatic Asylum','trans-allegheny-lunatic-asylum','USA','West Virginia, Weston','Asyl',
   39.0382,-80.4686,4,false,true,NULL,
   'Byggd för 250, fylld med tio gånger fler — och hem för West Virginia Lobotomy Project.',
   'Trans-Allegheny Lunatic Asylum i Weston i West Virginia tog emot patienter från 1864 till 1994. Bygget inleddes 1858 och stod färdigt först 1881, ritat enligt den så kallade Kirkbride-planen av arkitekten Richard Snowden Andrews.

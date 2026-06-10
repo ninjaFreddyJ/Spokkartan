@@ -1,9 +1,10 @@
 -- ============================================================
--- Spökkartan → hauntedplaces SYNC-paket
--- Genererad 2026-06-10. Innehåller ALLA nya platser (~137)
--- som lagts till i Spokkartan-repot, plus funktionsmigrationerna.
--- Allt är idempotent (ON CONFLICT (id) DO UPDATE / IF NOT EXISTS),
--- så det är ofarligt att köra om. Kör i Supabase SQL Editor.
+-- Spökkartan → hauntedplaces SYNC-paket (DEDUPLICERAT)
+-- Genererad 2026-06-10. Delad Supabase: kör EN gång.
+-- Alla rader är idempotenta. De ~16 platser som redan fanns har nu
+-- kanonisk slug -> ON CONFLICT BERIKAR befintlig rad (text), behåller
+-- befintliga bilder/koordinater. Inga nya dubbletter skapas.
+-- (Pre-existerande dubbletter i datan städas separat, se 65_DEDUP_*.sql)
 -- ============================================================
 
 -- ===== 33_GERMANY_SPUKORTE.sql =====
@@ -139,7 +140,7 @@ Källa: loreley-felsen.de + rheinreise.com + reisenexclusiv.com + Goethe-Institu
 
 -- 7. BEELITZ-HEILSTÄTTEN (Tyskland) — den övergivna kliniken
 INSERT INTO places (id, name, slug, country, region, type, lat, lng, scary, free, bookable, booking_url, teaser, description, img, img_credit, img_author, featured, is_new, status, source) VALUES (
-  'beelitz-heilstaetten','Beelitz-Heilstätten','beelitz-heilstaetten','Tyskland','Brandenburg, Beelitz','Sanatorium',
+  'beelitz-heilstatten','Beelitz-Heilstätten','beelitz-heilstatten','Tyskland','Brandenburg, Beelitz','Sanatorium',
   52.2700,12.9230,4,false,true,NULL,
   'Tysklands mest beryktade lost place — steg i tomma korridorer och dörrar som öppnas av sig själva.',
   'Beelitz-Heilstätten ligger i skogarna i Fläming söder om Berlin, i Brandenburg. Anläggningen byggdes mellan 1898 och 1902 och bestod av omkring 60 byggnader på cirka 200 hektar. I slutet av 1800-talet var tuberkulos en mycket smittsam sjukdom som dödade nära hälften av de 15–40-åriga i storstäder som Berlin, och Beelitz uppfördes som ett lungsanatorium för stadens arbetare.
@@ -690,7 +691,7 @@ BEGIN;
 
 -- 1. RMS QUEEN MARY (USA) — det hemsökta skeppet
 INSERT INTO places (id, name, slug, country, region, type, lat, lng, scary, free, bookable, booking_url, teaser, description, img, img_credit, img_author, featured, is_new, status, source) VALUES (
-  'rms-queen-mary','RMS Queen Mary','rms-queen-mary','USA','Kalifornien, Long Beach','Fartyg',
+  'queen-mary-long-beach','RMS Queen Mary','queen-mary-long-beach','USA','Kalifornien, Long Beach','Fartyg',
   33.7522,-118.1903,3,false,true,NULL,
   'Lyxångaren med över 150 andar — i hytt B340 dras täcken av nybäddade sängar.',
   'RMS Queen Mary, en gång världens lyxigaste oceanångare, tjänade som trupptransport under andra världskriget och ligger sedan dess permanent förtöjd i Long Beach i Kalifornien — idag ett av USA:s mest omtalat hemsökta fartyg. Skeppet sägs hysa över 150 andar, och både personal och besökare rapporterar regelbundet om vad som kan vara paranormal aktivitet.
@@ -1424,7 +1425,7 @@ Källa: Legends of America + usghostadventures.com + amyscrypt.com + Atlas Obscu
 
 -- 3. WHALEY HOUSE (USA) — Yankee Jims tunga steg
 INSERT INTO places (id, name, slug, country, region, type, lat, lng, scary, free, bookable, booking_url, teaser, description, img, img_credit, img_author, featured, is_new, status, source) VALUES (
-  'whaley-house','Whaley House','whaley-house','USA','Kalifornien, San Diego','Hus',
+  'whaley-house-san-diego','Whaley House','whaley-house-san-diego','USA','Kalifornien, San Diego','Hus',
   32.7510,-117.1950,3,false,true,NULL,
   'Byggt på galgbacken där Yankee Jim hängdes — hans tunga steg ekar än i tegelhuset.',
   'Whaley House i Old Town i San Diego, Kalifornien, byggdes 1857 av Thomas Whaley och är den äldsta tegelbyggnaden i södra Kalifornien. Genom åren tjänade huset som familjebostad, domstol och teater — men dess mörka rykte går längre tillbaka än så.
@@ -2381,7 +2382,7 @@ BEGIN;
 
 -- 1. THE STANLEY HOTEL — The Shinings födelseplats
 INSERT INTO places (id, name, slug, country, region, type, lat, lng, scary, free, bookable, booking_url, teaser, description, img, img_credit, img_author, featured, is_new, status, source) VALUES (
-  'stanley-hotel','The Stanley Hotel','stanley-hotel','USA','Colorado, Estes Park','Hotell',
+  'the-stanley-hotel','The Stanley Hotel','the-stanley-hotel','USA','Colorado, Estes Park','Hotell',
   40.3828,-105.5217,4,false,true,NULL,
   'Här drömde Stephen King fram The Shining i rum 217 — där en husa ännu sägs dröja kvar.',
   'Stanley Hotel i Estes Park i Colorado är ett 140-rums hotell i georgiansk stil, omkring åtta kilometer från Rocky Mountain National Park, och räknas som ett av Amerikas mest hemsökta hotell. Det byggdes av Freelan Oscar Stanley, delägare i Stanley Motor Carriage Company, och öppnade den 4 juli 1909 som lyxresort och hälsohem för lungtuberkulos.
@@ -2466,7 +2467,7 @@ Källa: Engelska Wikipedia "Legends of Myrtles Plantation" + themoonlitroad.com 
 
 -- 6. LALAURIE MANSION — New Orleans ondskefullaste hus
 INSERT INTO places (id, name, slug, country, region, type, lat, lng, scary, free, bookable, booking_url, teaser, description, img, img_credit, img_author, featured, is_new, status, source) VALUES (
-  'lalaurie-mansion','LaLaurie Mansion','lalaurie-mansion','USA','Louisiana, New Orleans','Herrgård',
+  'lalaurie-mansion-new-orleans','LaLaurie Mansion','lalaurie-mansion-new-orleans','USA','Louisiana, New Orleans','Herrgård',
   29.9595,-90.0637,4,true,false,NULL,
   'Branden 1834 blottade torterade slavar på vinden — de plågades skrik sägs ännu eka i kvarteret.',
   'LaLaurie Mansion på 1140 Royal Street i New Orleans franska kvarter räknas som en av stadens mest hemsökta — och ondskefulla — byggnader. Den uppfördes 1832 av societetsdamen Madame Delphine LaLaurie, som i hemlighet torterade och mördade förslavade människor i sitt hushåll.
@@ -2483,7 +2484,7 @@ Källa: Engelska Wikipedia "Delphine LaLaurie" + ghostcitytours.com + frenchquar
 
 -- 7. TRANS-ALLEGHENY LUNATIC ASYLUM — lobotomiprojektets hem
 INSERT INTO places (id, name, slug, country, region, type, lat, lng, scary, free, bookable, booking_url, teaser, description, img, img_credit, img_author, featured, is_new, status, source) VALUES (
-  'trans-allegheny-asylum','Trans-Allegheny Lunatic Asylum','trans-allegheny-asylum','USA','West Virginia, Weston','Asyl',
+  'trans-allegheny-lunatic-asylum','Trans-Allegheny Lunatic Asylum','trans-allegheny-lunatic-asylum','USA','West Virginia, Weston','Asyl',
   39.0382,-80.4686,4,false,true,NULL,
   'Byggd för 250, fylld med tio gånger fler — och hem för West Virginia Lobotomy Project.',
   'Trans-Allegheny Lunatic Asylum i Weston i West Virginia tog emot patienter från 1864 till 1994. Bygget inleddes 1858 och stod färdigt först 1881, ritat enligt den så kallade Kirkbride-planen av arkitekten Richard Snowden Andrews.
@@ -2944,7 +2945,7 @@ Källa: osphprc.com + onlyinyourstate.com + phantomhistory.com + kcghosts.com',
 
 COMMIT;
 
--- ===== FUNKTIONSMIGRATIONER (förslag + web-push) =====
+-- ===== FUNKTIONSMIGRATIONER =====
 -- Spökkartan — migration: användarförslag på nya platser ("Föreslå plats")
 -- Skapar tabellen place_suggestions + Row Level Security.
 --
