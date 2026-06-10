@@ -1,7 +1,50 @@
 
 // SPÖKKARTAN v7 — Mobile-first, working auth, clean navigation
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { fetchPlaces, subscribeToPlaces, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut as supabaseSignOut, getProfile, onAuthChange, getSession, fetchPartners, createPartner, fetchPartnerPackages, submitPartnerQuestion, fetchPartnerQuestions, updatePartnerQuestion, fetchHunters, fetchHunterVisits, updateHunterProfile, upsertHunterVisit, createHunterOrder, submitPlaceSuggestion, fetchPlaceSuggestions, updatePlaceSuggestion, deletePlaceSuggestion } from "./supabase";
+import { fetchPlaces, subscribeToPlaces, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut as supabaseSignOut, getProfile, onAuthChange, getSession, fetchPartners, createPartner, fetchPartnerPackages, submitPartnerQuestion, fetchPartnerQuestions, updatePartnerQuestion, fetchHunters, fetchHunterVisits, updateHunterProfile, upsertHunterVisit, createHunterOrder, submitPlaceSuggestion, fetchPlaceSuggestions, updatePlaceSuggestion, deletePlaceSuggestion, savePushSubscription, removePushSubscription } from "./supabase";
+
+// Web-push: publik VAPID-nyckel (publik = ofarlig att baka in). Sätt
+// VITE_VAPID_PUBLIC_KEY i Vercel för att rotera. Privata nyckeln ligger ENDAST
+// som env i api/send-push.js.
+const VAPID_PUBLIC_KEY = (typeof import.meta!=="undefined" && import.meta.env && import.meta.env.VITE_VAPID_PUBLIC_KEY) || "BPP0shyGlJWKD9Ci61DwyQP1_ksqFtLJD4xblIsVi4yKIRj4jrs4LE4NZX85Aum3PG5aj99yJuI1Hwg3OZ8NVdo";
+
+function urlBase64ToUint8Array(base64String){
+  const padding="=".repeat((4-base64String.length%4)%4);
+  const base64=(base64String+padding).replace(/-/g,"+").replace(/_/g,"/");
+  const raw=typeof atob!=="undefined"?atob(base64):"";
+  const out=new Uint8Array(raw.length);
+  for(let i=0;i<raw.length;i++) out[i]=raw.charCodeAt(i);
+  return out;
+}
+
+// Registrera service worker + prenumerera på web-push, spara i Supabase.
+// Returnerar true om prenumeration lyckades. Misslyckas tyst (notiser i
+// webbläsaren funkar ändå).
+async function subscribeWebPush(prefs){
+  try{
+    if(typeof navigator==="undefined" || !("serviceWorker" in navigator) || !("PushManager" in window)) return false;
+    const reg=await navigator.serviceWorker.register("/sw.js");
+    await navigator.serviceWorker.ready;
+    let sub=await reg.pushManager.getSubscription();
+    if(!sub){
+      sub=await reg.pushManager.subscribe({
+        userVisibleOnly:true,
+        applicationServerKey:urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+      });
+    }
+    await savePushSubscription(sub,{countries:prefs?.countries||[],frequency:prefs?.frequency||"instant"});
+    return true;
+  }catch(e){ console.warn("[Spokkartan] web-push:",e?.message||e); return false; }
+}
+
+async function unsubscribeWebPush(){
+  try{
+    if(typeof navigator==="undefined" || !("serviceWorker" in navigator)) return;
+    const reg=await navigator.serviceWorker.getRegistration();
+    const sub=reg && await reg.pushManager.getSubscription();
+    if(sub){ const ep=sub.endpoint; await sub.unsubscribe().catch(()=>{}); await removePushSubscription(ep); }
+  }catch(e){ /* ignore */ }
+}
 import { useLang, LANGS } from "./lang";
 import { applyMeta, applyHreflang, applyCanonical, applyPlaceJsonLd, applySiteJsonLd, getMeta, getPlaceMeta, parsePath, buildPath, pushPath, getOrigin } from "./seo";
 
@@ -1852,6 +1895,23 @@ function AdminDash({allPlaces,setAllPlaces,user,onLogout}) {
   useEffect(()=>{ loadSuggestions(); },[]);
   const newSug=suggestions.filter(s=>s.status==="new").length;
 
+  // Web-push broadcast
+  const [pushMsg,setPushMsg]=useState("");
+  const [pushSecret,setPushSecret]=useState("");
+  const [pushSending,setPushSending]=useState(false);
+  const [pushResult,setPushResult]=useState(null);
+  async function sendPush(){
+    if(!pushMsg.trim()||!pushSecret.trim()){ setPushResult({err:"Fyll i meddelande och admin-nyckel."}); return; }
+    setPushSending(true); setPushResult(null);
+    try{
+      const r=await fetch("/api/send-push",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+pushSecret.trim()},body:JSON.stringify({title:"Spökkartan 👻",body:pushMsg.trim(),url:"/"})});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok) setPushResult({err:j.error||("HTTP "+r.status)});
+      else { setPushResult({ok:`Skickat till ${j.sent} enheter${j.removed?` (${j.removed} döda rensade)`:""}.`}); setPushMsg(""); }
+    }catch(e){ setPushResult({err:e.message||"Nätverksfel"}); }
+    setPushSending(false);
+  }
+
   const pub=allPlaces.filter(p=>p.status==="published");
   const drafts=allPlaces.filter(p=>p.status==="draft");
   const newScrapes=scraperQueue.filter(p=>p.status==="new");
@@ -1948,6 +2008,18 @@ function AdminDash({allPlaces,setAllPlaces,user,onLogout}) {
                 <Btn ch="📍 Platser" v="ghost" sz="sm" onClick={()=>setTab("places")}/>
                 <Btn ch={"🔍 Granska "+newScrapes.length+" nya"} v="ghost" sz="sm" onClick={()=>setTab("scraper")}/>
               </div>
+            </div>
+
+            {/* Web-push broadcast */}
+            <div style={{background:"var(--card)",border:"1px solid var(--b)",borderRadius:12,padding:"14px",marginBottom:14}}>
+              <div style={{fontSize:13,fontWeight:700,color:"var(--tx)",marginBottom:4}}>📣 Skicka push till alla</div>
+              <div style={{fontSize:10,color:"var(--tx3)",marginBottom:10,lineHeight:1.5}}>Skickar en notis till alla som slagit på notiser. Kräver att <code>62_PUSH_SUBSCRIPTIONS.sql</code> körts och att env-nycklarna är satta i Vercel.</div>
+              <input className="inp inp-sm" value={pushMsg} onChange={e=>setPushMsg(e.target.value)} placeholder="t.ex. 10 nya hemsökta platser i USA! 👻" style={{marginBottom:8}}/>
+              <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+                <input className="inp inp-sm" type="password" value={pushSecret} onChange={e=>setPushSecret(e.target.value)} placeholder="Admin-nyckel (PUSH_ADMIN_SECRET)" style={{flex:1,minWidth:160}}/>
+                <Btn ch={pushSending?"Skickar…":"📣 Skicka"} v="p" sz="sm" onClick={sendPush}/>
+              </div>
+              {pushResult&&<div style={{fontSize:11,marginTop:8,color:pushResult.err?"#f87171":"#34d399"}}>{pushResult.err||pushResult.ok}</div>}
             </div>
 
             {/* Instruction inbox */}
@@ -2240,6 +2312,8 @@ function NotificationModal({user,prefs,setPrefs,onClose}) {
   function save(next){
     setPrefs(next);
     try{localStorage.setItem("spokkartan_notif_prefs",JSON.stringify(next));}catch{}
+    // Om vi redan är på: synka prenumerationens länder/frekvens i bakgrunden.
+    if(next.enabled){ subscribeWebPush(next).catch(()=>{}); }
   }
   function toggleCountry(c){
     const has=prefs.countries.includes(c);
@@ -2251,12 +2325,14 @@ function NotificationModal({user,prefs,setPrefs,onClose}) {
       const res=await Notification.requestPermission();
       setPerm(res);
       if(res==="granted"){
-        save({...prefs,enabled:true});
+        const next={...prefs,enabled:true};
+        save(next);
+        await subscribeWebPush(next).catch(()=>{});
         try{new Notification("Spökkartan",{body:"Notiser på! Du får ett pling när nya hemsökta platser dyker upp. 👻"});}catch{}
       }
     }catch{ save({...prefs,enabled:true}); }
   }
-  function disable(){ save({...prefs,enabled:false}); }
+  function disable(){ save({...prefs,enabled:false}); unsubscribeWebPush().catch(()=>{}); }
 
   const pill=(on)=>({padding:"6px 11px",borderRadius:20,fontSize:12,fontWeight:600,cursor:"pointer",border:"1px solid "+(on?"var(--acc)":"var(--b)"),background:on?"rgba(124,58,237,0.15)":"var(--bg3)",color:on?"var(--acc)":"var(--tx3)"});
 

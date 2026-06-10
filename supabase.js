@@ -92,6 +92,30 @@ export async function deletePlaceSuggestion(id) {
   if (error) throw error;
 }
 
+// ── WEB-PUSH PRENUMERATIONER ───────────────────────────────
+
+export async function savePushSubscription(subscription, { countries = [], frequency = 'instant' } = {}) {
+  const { data: { user } } = await supabase.auth.getUser();
+  const json = subscription.toJSON ? subscription.toJSON() : subscription;
+  const row = {
+    endpoint: json.endpoint,
+    p256dh: json.keys && json.keys.p256dh,
+    auth: json.keys && json.keys.auth,
+    user_id: user?.id || null,
+    countries,
+    frequency,
+    user_agent: (typeof navigator !== 'undefined' ? navigator.userAgent : null),
+  };
+  const { error } = await supabase.from('push_subscriptions').upsert(row, { onConflict: 'endpoint' });
+  if (error) throw error;
+}
+
+export async function removePushSubscription(endpoint) {
+  if (!endpoint) return;
+  const { error } = await supabase.from('push_subscriptions').delete().eq('endpoint', endpoint);
+  if (error) console.error('[Spokkartan] removePushSubscription:', error.message);
+}
+
 // ── AUTH ────────────────────────────────────────────────────
 
 export async function signInWithGoogle() {
