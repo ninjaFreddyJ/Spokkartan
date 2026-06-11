@@ -1,15 +1,23 @@
 name: Apply DB migration (platser → live)
 
-# Kör SQL-paketet mot Supabase från en GitHub-runner (som NÅR Supabase,
-# till skillnad från Claudes sandlåda). Behöver ETT repo-secret: SUPABASE_DB_URL
-# (Supabase → Project Settings → Database → Connection string → URI).
+# AUTOMATISK databas-synk.
+# Körs av sig själv vid varje push till main som ändrar något i sql/ —
+# dvs varje gång Claude lägger till nya platser blir de live automatiskt.
+# Kan även köras manuellt (workflow_dispatch).
 #
-# Lägg till secret:  Repo → Settings → Secrets and variables → Actions →
-#                    New repository secret → Name: SUPABASE_DB_URL → klistra in URI:n.
-# Sedan: Actions-fliken → "Apply DB migration" → Run workflow  (eller be Claude trigga).
+# ENDA engångsåtgärden: lägg secret SUPABASE_DB_URL en gång
+# (Repo → Settings → Secrets and variables → Actions). Sedan: helt automatiskt.
 
 on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'sql/**'
   workflow_dispatch: {}
+
+concurrency:
+  group: apply-db
+  cancel-in-progress: false
 
 jobs:
   apply:
@@ -21,9 +29,9 @@ jobs:
           DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
           if [ -z "$DB_URL" ]; then
-            echo "::error::Saknar secret SUPABASE_DB_URL. Lägg till den i Settings -> Secrets and variables -> Actions, kör sedan igen."
+            echo "::error::Saknar secret SUPABASE_DB_URL. Lägg till den EN gång i Settings -> Secrets and variables -> Actions, sedan är allt automatiskt."
             exit 1
           fi
-          echo "Kör 00_RUN_THIS_IN_SUPABASE.sql ..."
+          echo "Synkar platser till Supabase ..."
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f sql/00_RUN_THIS_IN_SUPABASE.sql
-          echo "Klart."
+          echo "Klart — alla platser är live."
