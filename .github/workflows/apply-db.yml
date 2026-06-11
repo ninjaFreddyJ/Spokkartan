@@ -1,37 +1,65 @@
 name: Apply DB migration (platser → live)
 
 # AUTOMATISK databas-synk.
-# Körs av sig själv vid varje push till main som ändrar något i sql/ —
-# dvs varje gång Claude lägger till nya platser blir de live automatiskt.
+# Körs automatiskt vid varje push till main som ändrar något i sql/ —
+# dvs varje gång en ny SQL-fil läggs till eller ändras blir den live direkt.
 # Kan även köras manuellt (workflow_dispatch).
 #
 # ENDA engångsåtgärden: lägg secret SUPABASE_DB_URL en gång
 # (Repo → Settings → Secrets and variables → Actions). Sedan: helt automatiskt.
+#
+# VIKTIGT: Workflow kör ALLA numrerade sql-filer i ordning (09_, 12_, 14_...),
+# varje fil är idempotent (INSERT ... ON CONFLICT DO UPDATE),
+# så det är säkert att köra om hela serien vid varje push.
 
 on:
   push:
-    branches: [ main ]
-    paths:
-      - 'sql/**'
-  workflow_dispatch: {}
+      branches: [ main ]
+          paths:
+                - 'sql/**'
+                  workflow_dispatch: {}
 
-concurrency:
-  group: apply-db
-  cancel-in-progress: false
+                  concurrency:
+                    group: apply-db
+                      cancel-in-progress: false
 
-jobs:
-  apply:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Run migration against Supabase
-        env:
-          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-        run: |
-          if [ -z "$DB_URL" ]; then
-            echo "::error::Saknar secret SUPABASE_DB_URL. Lägg till den EN gång i Settings -> Secrets and variables -> Actions, sedan är allt automatiskt."
-            exit 1
-          fi
-          echo "Synkar platser till Supabase ..."
-          psql "$DB_URL" -v ON_ERROR_STOP=1 -f sql/00_RUN_THIS_IN_SUPABASE.sql
-          echo "Klart — alla platser är live."
+                      jobs:
+                        apply:
+                            runs-on: ubuntu-latest
+                                steps:
+                                      - uses: actions/checkout@v4
+
+                                            - name: Install psql
+                                                    run: sudo apt-get install -y postgresql-client
+
+                                                          - name: Verify secret exists
+                                                                  env:
+                                                                            DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+                                                                                    run: |
+                                                                                              if [ -z "$DB_URL" ]; then
+                                                                                                          echo "::error::Saknar secret SUPABASE_DB_URL. Lägg till den EN gång i Settings -> Secrets and variables -> Actions, sedan är allt automatiskt."
+                                                                                                                      exit 1
+                                                                                                                                fi
+                                                                                                                                
+                                                                                                                                      - name: Run all SQL migrations in order
+                                                                                                                                              env:
+                                                                                                                                                        DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+                                                                                                                                                                run: |
+                                                                                                                                                                          echo "=== Kör alla SQL-filer i sql/ i nummerordning ==="
+                                                                                                                                                                                    # Hitta alla numrerade filer (t.ex. 09_*, 12_*, 33_*...) sorterade i ordning
+                                                                                                                                                                                              # Exkludera 00_RUN_THIS_IN_SUPABASE.sql (aggregerad manuell fil) och SYNC_TO_*
+                                                                                                                                                                                                        FILES=$(find sql/ -name '[0-9][0-9]_*.sql' | sort)
+                                                                                                                                                                                                                  if [ -z "$FILES" ]; then
+                                                                                                                                                                                                                              echo "Inga SQL-filer hittades i sql/. Inget att göra."
+                                                                                                                                                                                                                                          exit 0
+                                                                                                                                                                                                                                                    fi
+                                                                                                                                                                                                                                                              echo "Hittade filer:"
+                                                                                                                                                                                                                                                                        echo "$FILES"
+                                                                                                                                                                                                                                                                                  echo "---"
+                                                                                                                                                                                                                                                                                            for f in $FILES; do
+                                                                                                                                                                                                                                                                                                        echo ">>> Kör $f ..."
+                                                                                                                                                                                                                                                                                                                    psql "$DB_URL" -v ON_ERROR_STOP=1 -f "$f"
+                                                                                                                                                                                                                                                                                                                                echo "<<< $f klar."
+                                                                                                                                                                                                                                                                                                                                          done
+                                                                                                                                                                                                                                                                                                                                                    echo ""
+                                                                                                                                                                                                                                                                                                                                                              echo "=== Alla migrationer klara — platser är live ==="
