@@ -1,0 +1,34 @@
+name: DB healthcheck (veckovis)
+
+# Lattvikts-canary: verifierar varje vecka att SUPABASE_DB_URL fungerar och att
+# places-tabellen har data. Gar ROD direkt om hemligheten/losenordet slutar funka,
+# sa du upptacker det inom en vecka istallet for vid nasta migration.
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"   # varje mandag 06:00 UTC
+  workflow_dispatch: {}
+
+jobs:
+  healthcheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Install psql
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Check DB connection and places count
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$DB_URL" ]; then
+            echo "::error::SUPABASE_DB_URL saknas i repo-secrets."
+            exit 1
+          fi
+          COUNT=$(psql "$DB_URL" -tAc "select count(*) from public.places;")
+          echo "Platser i databasen: $COUNT"
+          if ! [ "$COUNT" -ge 1 ] 2>/dev/null; then
+            echo "::error::Kunde inte lasa places-tabellen (tom svar eller anslutningsfel)."
+            exit 1
+          fi
+          echo "OK: databasen svarar och har $COUNT platser."
