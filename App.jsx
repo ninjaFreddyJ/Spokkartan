@@ -1,7 +1,7 @@
 
 // SPÖKKARTAN v7 — Mobile-first, working auth, clean navigation
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { fetchPlaces, subscribeToPlaces, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut as supabaseSignOut, getProfile, onAuthChange, getSession, fetchPartners, createPartner, fetchPartnerPackages, submitPartnerQuestion, fetchPartnerQuestions, updatePartnerQuestion, fetchHunters, fetchHunterVisits, updateHunterProfile, upsertHunterVisit, createHunterOrder, submitPlaceSuggestion, fetchPlaceSuggestions, updatePlaceSuggestion, deletePlaceSuggestion, savePushSubscription, removePushSubscription } from "./supabase";
+import { fetchPlaces, subscribeToPlaces, signInWithGoogle, signInWithEmail, signUpWithEmail, resetPasswordForEmail, signOut as supabaseSignOut, getProfile, onAuthChange, getSession, fetchPartners, createPartner, fetchPartnerPackages, submitPartnerQuestion, fetchPartnerQuestions, updatePartnerQuestion, fetchHunters, fetchHunterVisits, updateHunterProfile, upsertHunterVisit, createHunterOrder, submitPlaceSuggestion, fetchPlaceSuggestions, updatePlaceSuggestion, deletePlaceSuggestion, savePushSubscription, removePushSubscription } from "./supabase";
 
 // Web-push: publik VAPID-nyckel (publik = ofarlig att baka in). Sätt
 // VITE_VAPID_PUBLIC_KEY i Vercel för att rotera. Privata nyckeln ligger ENDAST
@@ -545,6 +545,18 @@ function SpokMap({places,onSelect}) {
   );
 }
 
+// Översätt Supabase auth-fel till begriplig svenska
+function authErrMsg(e){
+  const m=(e&&e.message)||String(e||"");
+  if(/already registered|already exists|User already/i.test(m)) return "E-posten är redan registrerad. Logga in i stället.";
+  if(/Invalid login credentials/i.test(m)) return "Fel e-post eller lösenord.";
+  if(/Email not confirmed/i.test(m)) return "Bekräfta din e-post först — kolla inkorgen (och skräpposten).";
+  if(/rate limit|too many/i.test(m)) return "För många försök. Vänta en stund och prova igen.";
+  if(/password/i.test(m)&&/least|short|6/i.test(m)) return "Lösenordet måste vara minst 6 tecken.";
+  if(/network|fetch|Failed to fetch/i.test(m)) return "Nätverksfel — kontrollera uppkopplingen och försök igen.";
+  return m || "Något gick fel. Försök igen.";
+}
+
 // ── AUTH MODAL ────────────────────────────────────────────────
 function AuthModal({initMode,onClose,onSuccess}) {
   const [mode,setMode]=useState(initMode||"login");
@@ -566,37 +578,79 @@ function AuthModal({initMode,onClose,onSuccess}) {
   async function doLogin(e){
     e?.preventDefault();
     setErr("");setLoading(true);
-    await new Promise(r=>setTimeout(r,600));
     const key=email.trim().toLowerCase();
-    const u=USERS_DB[key];
-    if(!u||u.pass!==pass){setErr("Fel e-post eller lösenord.");setLoading(false);return;}
-    onSuccess(u);
+    // Lokal admin-genväg: ägaren ska aldrig kunna låsas ute även om
+    // admin-kontot inte finns i Supabase ännu.
+    const local=USERS_DB[key];
+    if(local && local.role==="admin" && local.pass===pass){
+      setLoading(false);
+      onSuccess(local);
+      return;
+    }
+    // Riktig inloggning mot Supabase Auth.
+    try{
+      await signInWithEmail(key,pass);
+      // onAuthChange (SIGNED_IN) i App laddar profilen och sätter user-state.
+      setLoading(false);
+      onClose();
+    }catch(err){
+      setLoading(false);
+      setErr(authErrMsg(err));
+    }
   }
   async function doRegister(e){
     e?.preventDefault();
-    setErr("");setLoading(true);
-    await new Promise(r=>setTimeout(r,700));
-    if(!name.trim()||!email.trim()||!pass){setErr("Fyll i namn, e-post och lösenord.");setLoading(false);return;}
-    if(pass.length<6){setErr("Lösenordet måste vara minst 6 tecken.");setLoading(false);return;}
+    setErr("");setMsg("");
+    if(!name.trim()||!email.trim()||!pass){setErr("Fyll i namn, e-post och lösenord.");return;}
+    if(pass.length<6){setErr("Lösenordet måste vara minst 6 tecken.");return;}
+    setLoading(true);
     const key=email.trim().toLowerCase();
-    if(USERS_DB[key]){setErr("E-posten är redan registrerad.");setLoading(false);return;}
-    const u={id:`u${Date.now()}`,name:name.trim(),email:key,pass,
-      role:isHunter?"pending_hunter":"user",pro:false,
-      bio,yt,ig,fb:"",created:new Date().toISOString().slice(0,10),
-      verified:!isHunter,avatar:""};
-    USERS_DB[key]=u;
-    onSuccess(u);
+    try{
+      // Skapa riktigt konto i Supabase. is_hunter/bio/socials följer med som
+      // metadata och fångas upp av DB-triggern handle_new_user → profiles.
+      const data=await signUpWithEmail(key,pass,name.trim(),{
+        is_hunter:isHunter,
+        ...(isHunter?{role:"pending_hunter",bio,yt,ig}:{}),
+      });
+      setLoading(false);
+      if(data?.session){
+        // Direkt inloggad (e-postbekräftelse avstängd) — onAuthChange sätter user.
+        onClose();
+      }else{
+        // E-postbekräftelse krävs innan man kan logga in.
+        setMode("login");
+        setPass("");
+        setMsg(`✅ Konto skapat! Vi skickade ett bekräftelsemejl till ${key}. Klicka på länken och logga sedan in.`);
+      }
+    }catch(err){
+      setLoading(false);
+      setErr(authErrMsg(err));
+    }
   }
   async function doRecovSend(e){
     e?.preventDefault();
     setErr("");setLoading(true);
-    await new Promise(r=>setTimeout(r,800));
-    const u=USERS_DB[recovEmail.trim().toLowerCase()];
-    if(!u){setErr("Ingen användare med den e-postadressen.");setLoading(false);return;}
-    const code=String(Math.floor(100000+Math.random()*900000));
-    setGenCode(code);
-    setMsg(`Kod skickad! (Demo: koden är ${code})`);
-    setMode("recov_code");setLoading(false);
+    const key=recovEmail.trim().toLowerCase();
+    if(!key){setErr("Ange din e-postadress.");setLoading(false);return;}
+    // Lokal admin: behåll demo-kodflödet (admin finns inte i Supabase Auth).
+    const local=USERS_DB[key];
+    if(local && local.role==="admin"){
+      const code=String(Math.floor(100000+Math.random()*900000));
+      setGenCode(code);
+      setMsg(`Kod skickad! (Demo: koden är ${code})`);
+      setMode("recov_code");setLoading(false);
+      return;
+    }
+    // Riktiga användare: skicka återställningslänk via Supabase.
+    try{
+      await resetPasswordForEmail(key);
+      setLoading(false);
+      setMode("login");
+      setMsg(`✅ Om ${key} finns hos oss har vi skickat en återställningslänk. Kolla inkorgen (och skräpposten).`);
+    }catch(err){
+      setLoading(false);
+      setErr(authErrMsg(err));
+    }
   }
   async function doRecovCode(e){
     e?.preventDefault();

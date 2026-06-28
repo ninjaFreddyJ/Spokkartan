@@ -139,10 +139,21 @@ export async function signInWithEmail(email, password) {
   return data;
 }
 
-export async function signUpWithEmail(email, password, fullName) {
+export async function signUpWithEmail(email, password, fullName, meta = {}) {
   const { data, error } = await supabase.auth.signUp({
     email, password,
-    options: { data: { full_name: fullName, name: fullName } }
+    options: {
+      data: { full_name: fullName, name: fullName, ...meta },
+      emailRedirectTo: (typeof window !== 'undefined' ? window.location.origin : undefined),
+    }
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function resetPasswordForEmail(email) {
+  const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: (typeof window !== 'undefined' ? window.location.origin : undefined),
   });
   if (error) throw error;
   return data;
