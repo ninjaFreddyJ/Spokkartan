@@ -606,12 +606,17 @@ function AuthModal({initMode,onClose,onSuccess}) {
     setLoading(true);
     const key=email.trim().toLowerCase();
     try{
-      // Skapa riktigt konto i Supabase. is_hunter/bio/socials följer med som
-      // metadata och fångas upp av DB-triggern handle_new_user → profiles.
+      // Skapa riktigt konto i Supabase. is_hunter/bio/socials/ref/lang följer
+      // med som metadata och fångas upp av DB-triggern handle_new_user.
+      let refCode=""; try{ refCode=localStorage.getItem("spok_ref")||""; }catch(_){}
+      const lang=(typeof document!=="undefined"&&document.documentElement.lang)||"sv";
       const data=await signUpWithEmail(key,pass,name.trim(),{
         is_hunter:isHunter,
+        lang,
+        ...(refCode?{ref:refCode}:{}),
         ...(isHunter?{role:"pending_hunter",bio,yt,ig}:{}),
       });
+      if(refCode){ try{ localStorage.removeItem("spok_ref"); }catch(_){} }
       setLoading(false);
       if(data?.session){
         // Direkt inloggad (e-postbekräftelse avstängd) — onAuthChange sätter user.
@@ -3578,14 +3583,19 @@ export default function App() {
     return () => { mounted = false; unsubscribe(); };
   }, []);
 
-  // ── Hantera ?welcome=pro return från Stripe ───────────────
+  // ── Hantera ?welcome=pro return från Stripe + ?ref= (referral) ──
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    // Referral: spara vännens kod så den kan skickas med vid registrering.
+    const ref = params.get('ref');
+    if (ref) { try { localStorage.setItem('spok_ref', ref.trim()); } catch (e) {} }
     if (params.get('welcome') === 'pro') {
       setIsPro(true);
       // Optional: show a thank-you toast/modal here
       console.log('[Spokkartan] Välkommen som PRO!');
-      // Clean URL
+    }
+    // Städa URL:en om vi konsumerade en param
+    if (ref || params.get('welcome')) {
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, []);
