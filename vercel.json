@@ -4,7 +4,7 @@
   ],
   "rewrites": [
     { "source": "/sitemap.xml", "destination": "/api/sitemap.xml" },
-    { "source": "/robots.txt", "destination": "/robots.txt" },
+    { "source": "/robots.txt", "destination": "/api/robots" },
     {
       "source": "/:lang(sv|en|de|no|da)/:seg(plats|place|ort|sted)/:slug",
       "has": [
