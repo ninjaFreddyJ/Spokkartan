@@ -1,7 +1,7 @@
 
 // SPÖKKARTAN v7 — Mobile-first, working auth, clean navigation
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { fetchPlaces, subscribeToPlaces, signInWithGoogle, signInWithEmail, signUpWithEmail, resetPasswordForEmail, signOut as supabaseSignOut, getProfile, onAuthChange, getSession, fetchPartners, createPartner, fetchPartnerPackages, submitPartnerQuestion, fetchPartnerQuestions, updatePartnerQuestion, fetchHunters, fetchHunterVisits, updateHunterProfile, upsertHunterVisit, createHunterOrder, submitPlaceSuggestion, fetchPlaceSuggestions, updatePlaceSuggestion, deletePlaceSuggestion, savePushSubscription, removePushSubscription } from "./supabase";
+import { fetchPlaces, subscribeToPlaces, signInWithGoogle, signInWithEmail, signUpWithEmail, resetPasswordForEmail, signOut as supabaseSignOut, getProfile, onAuthChange, getSession, fetchPartners, createPartner, fetchPartnerPackages, submitPartnerQuestion, fetchPartnerQuestions, updatePartnerQuestion, fetchHunters, fetchHunterVisits, updateHunterProfile, upsertHunterVisit, createHunterOrder, submitPlaceSuggestion, fetchPlaceSuggestions, updatePlaceSuggestion, deletePlaceSuggestion, savePushSubscription, removePushSubscription, upsertPlaceReview, fetchMyPlaceReview, fetchPlaceReviewStats } from "./supabase";
 
 // Web-push: publik VAPID-nyckel (publik = ofarlig att baka in). Sätt
 // VITE_VAPID_PUBLIC_KEY i Vercel för att rotera. Privata nyckeln ligger ENDAST
@@ -920,7 +920,106 @@ function PlacePopup({place,isPro,onRead,onClose,onAddRoadtrip,inRoadtrip}) {
 }
 
 // ── READER ────────────────────────────────────────────────────
-function Reader({place,allPlaces,isPro,onClose,onNavigate,upgrade,roadtrip,setRoadtrip,visited,setVisited,user,onShare}) {
+// ── PLATSRECENSION (knappval) ─────────────────────────────────
+const REVIEW_EXP = [
+  { code:"amazing", emoji:"🤩", label:"Fantastisk" },
+  { code:"good",    emoji:"😊", label:"Bra" },
+  { code:"ok",      emoji:"😐", label:"Okej" },
+  { code:"dull",    emoji:"😴", label:"Ingen behållning" },
+];
+const REVIEW_SPOOK = [
+  { n:1, label:"Helt lugnt" },
+  { n:2, label:"Lite pirrigt" },
+  { n:3, label:"Obehagligt" },
+  { n:4, label:"Skrämmande" },
+  { n:5, label:"Skräckupplevelse" },
+];
+const REVIEW_TAGS = [
+  { code:"cold",    emoji:"🥶", label:"Kalla fläckar" },
+  { code:"sounds",  emoji:"🔊", label:"Ljud / röster" },
+  { code:"shadows", emoji:"👤", label:"Skuggor / rörelser" },
+  { code:"objects", emoji:"🕯️", label:"Föremål rörde sig" },
+  { code:"touch",   emoji:"✋", label:"Beröring / knuffar" },
+  { code:"emf",     emoji:"📟", label:"Utrustningsutslag (EMF)" },
+  { code:"unease",  emoji:"😱", label:"Obehagskänsla" },
+  { code:"nothing", emoji:"🤍", label:"Inget övernaturligt" },
+];
+const expMeta = (c) => REVIEW_EXP.find(e=>e.code===c);
+
+function VisitReviewModal({ place, existing, onClose, onSaved }) {
+  const [exp,setExp]=useState(existing?.experience||"");
+  const [spook,setSpook]=useState(existing?.spook_level||0);
+  const [tags,setTags]=useState(existing?.tags||[]);
+  const [note,setNote]=useState(existing?.note||"");
+  const [loading,setLoading]=useState(false);
+  const [err,setErr]=useState("");
+  const toggleTag=(c)=>setTags(t=>t.includes(c)?t.filter(x=>x!==c):[...t,c]);
+
+  async function save(){
+    if(!exp){setErr("Välj hur du upplevde platsen.");return;}
+    if(!spook){setErr("Välj hur spökligt det kändes.");return;}
+    setLoading(true);setErr("");
+    try{
+      await upsertPlaceReview({ place_id:place.id, experience:exp, spook_level:spook, tags, note:note.trim() });
+      onSaved?.();
+    }catch(e){ setErr(e.message||"Kunde inte spara."); setLoading(false); }
+  }
+
+  const lbl={fontSize:12,fontWeight:700,color:"var(--tx2)",margin:"16px 0 8px",display:"block"};
+  const chip=(active)=>({background:active?"rgba(124,58,237,0.18)":"var(--bg3)",border:`1px solid ${active?"#7c3aed":"var(--b)"}`,borderRadius:11,padding:"10px 12px",cursor:"pointer",color:"var(--tx)",fontSize:13,fontWeight:500,display:"flex",alignItems:"center",gap:8,transition:"all 0.15s",textAlign:"left"});
+
+  return(
+    <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+      <div className="modal-sheet au" style={{maxHeight:"92vh",overflowY:"auto"}}>
+        <div className="modal-handle"/>
+        <button onClick={onClose} style={{position:"absolute",top:14,right:14,background:"none",border:"none",color:"var(--tx3)",cursor:"pointer",fontSize:22,padding:4}}>✕</button>
+        <div style={{textAlign:"center",marginBottom:6}}>
+          <div style={{fontSize:32}}>👻</div>
+          <h2 style={{fontSize:18,fontWeight:800,color:"var(--tx)",margin:"6px 0 2px"}}>Dela din upplevelse</h2>
+          <p style={{fontSize:12,color:"var(--tx3)"}}>{place.name}</p>
+        </div>
+
+        <label style={lbl}>Hur upplevde du platsen?</label>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+          {REVIEW_EXP.map(e=>(
+            <button key={e.code} onClick={()=>setExp(e.code)} style={chip(exp===e.code)}>
+              <span style={{fontSize:18}}>{e.emoji}</span>{e.label}
+            </button>
+          ))}
+        </div>
+
+        <label style={lbl}>Hur spökligt kändes det?</label>
+        <div style={{display:"flex",flexDirection:"column",gap:6}}>
+          {REVIEW_SPOOK.map(s=>(
+            <button key={s.n} onClick={()=>setSpook(s.n)} style={chip(spook===s.n)}>
+              <span style={{fontSize:14,letterSpacing:1}}>{"👻".repeat(s.n)}</span>
+              <span style={{color:"var(--tx3)",fontSize:12}}>{s.label}</span>
+            </button>
+          ))}
+        </div>
+
+        <label style={lbl}>Vad upplevde du? <span style={{fontWeight:400,color:"var(--tx4)"}}>(välj flera)</span></label>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+          {REVIEW_TAGS.map(tg=>(
+            <button key={tg.code} onClick={()=>toggleTag(tg.code)} style={chip(tags.includes(tg.code))}>
+              <span style={{fontSize:16}}>{tg.emoji}</span><span style={{fontSize:12}}>{tg.label}</span>
+            </button>
+          ))}
+        </div>
+
+        <label style={lbl}>Kommentar <span style={{fontWeight:400,color:"var(--tx4)"}}>(valfritt)</span></label>
+        <textarea className="inp" value={note} onChange={e=>setNote(e.target.value)} rows={2} maxLength={500} placeholder="Berätta kort om ditt besök…" style={{resize:"none",width:"100%"}}/>
+
+        {err&&<div style={{background:"rgba(248,113,113,0.12)",border:"1px solid rgba(248,113,113,0.35)",borderRadius:9,padding:"10px 13px",fontSize:13,color:"#f87171",marginTop:12}}>{err}</div>}
+        <button onClick={save} disabled={loading} className="btn btn-p btn-full" style={{marginTop:16}}>
+          {loading?<Spinner/>:(existing?"Uppdatera recension →":"Spara recension →")}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function Reader({place,allPlaces,isPro,onClose,onNavigate,upgrade,roadtrip,setRoadtrip,visited,setVisited,user,onShare,onAuth}) {
   const locked=!place.free&&!isPro;
   // Build gallery: prefer place.images array, fallback to single img
   const gallery = (Array.isArray(place.images) && place.images.length > 0)
@@ -948,9 +1047,29 @@ function Reader({place,allPlaces,isPro,onClose,onNavigate,upgrade,roadtrip,setRo
 
   const isVisited=visited.includes(place.id);
 
+  // ── Platsrecensioner (knappval) ──
+  const [showReview,setShowReview]=useState(false);
+  const [myReview,setMyReview]=useState(null);
+  const [reviewStats,setReviewStats]=useState(null);
+  useEffect(()=>{
+    let on=true;
+    fetchPlaceReviewStats(place.id).then(s=>{if(on)setReviewStats(s);});
+    if(user) fetchMyPlaceReview(place.id).then(r=>{if(on)setMyReview(r);}); else setMyReview(null);
+    return ()=>{on=false;};
+  },[place.id,user]);
+  async function reloadReview(){
+    const [s,r]=await Promise.all([
+      fetchPlaceReviewStats(place.id),
+      user?fetchMyPlaceReview(place.id):Promise.resolve(null),
+    ]);
+    setReviewStats(s);setMyReview(r);
+  }
+  function openReview(){ if(!user){onAuth?.();return;} setShowReview(true); }
+
   return(
     <div style={{position:"fixed",inset:0,background:"var(--bg)",zIndex:800,display:"flex",flexDirection:"column",fontFamily:"'Poppins',sans-serif"}}>
       <style>{CSS}</style>
+      {showReview&&<VisitReviewModal place={place} existing={myReview} onClose={()=>setShowReview(false)} onSaved={async()=>{await reloadReview();if(!visited.includes(place.id))setVisited(v=>[...v,place.id]);setShowReview(false);}}/>}
 
       {/* ── Top bar ── */}
       <div style={{background:"rgba(7,6,15,0.97)",backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",borderBottom:"1px solid var(--b)",padding:"10px 14px",display:"flex",alignItems:"center",gap:8,flexShrink:0,zIndex:10}}>
@@ -1020,6 +1139,18 @@ function Reader({place,allPlaces,isPro,onClose,onNavigate,upgrade,roadtrip,setRo
               {place.region&&<span style={{fontSize:11,color:"var(--tx3)"}}>{place.region}</span>}
               {isVisited&&<Tag ch="✓ Besökt" c="#34d399"/>}
             </div>
+
+            {/* Besökarnas upplevelser (aggregat) */}
+            {reviewStats?.review_count>0&&(
+              <div style={{background:"var(--bg3)",border:"1px solid var(--b)",borderRadius:12,padding:"11px 14px",marginBottom:18,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+                <span style={{fontSize:16}}>{"👻".repeat(Math.max(1,Math.round(reviewStats.avg_spook||0)))}</span>
+                <span style={{fontSize:13,fontWeight:700,color:"var(--tx)"}}>{Number(reviewStats.avg_spook).toFixed(1)}/5</span>
+                <span style={{fontSize:12,color:"var(--tx3)"}}>spöklighet · {reviewStats.review_count} {reviewStats.review_count===1?"besökare":"besökare"}</span>
+                {reviewStats.top_experience&&expMeta(reviewStats.top_experience)&&(
+                  <Tag ch={`${expMeta(reviewStats.top_experience).emoji} ${expMeta(reviewStats.top_experience).label}`} c="#a78bfa"/>
+                )}
+              </div>
+            )}
 
             {/* ── LOCKED ── */}
             {locked?(
@@ -1097,6 +1228,12 @@ function Reader({place,allPlaces,isPro,onClose,onNavigate,upgrade,roadtrip,setRo
                     <span style={{fontSize:10,fontWeight:600,color:roadtrip.includes(place.id)?"#fbbf24":"var(--tx3)"}}>{roadtrip.includes(place.id)?"I ROADTRIP":"+ ROADTRIP"}</span>
                   </button>
                 </div>
+
+                {/* Dela din upplevelse (recension) */}
+                <button onClick={openReview} style={{width:"100%",background:myReview?"rgba(124,58,237,0.1)":"var(--bg3)",border:`1px solid ${myReview?"#7c3aed":"var(--b)"}`,borderRadius:11,padding:"13px",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:14,color:"var(--tx)",fontSize:13,fontWeight:600}}>
+                  <span style={{fontSize:18}}>⭐</span>
+                  {myReview?"Uppdatera din upplevelse":"Dela din upplevelse"}
+                </button>
 
                 {/* Booking */}
                 {place.bookable&&place.bookingUrl&&(
@@ -3735,6 +3872,7 @@ export default function App() {
         setVisited={setVisited}
         user={user}
         onShare={(title,url)=>setShareData({title,url})}
+        onAuth={()=>{setReading(null);setAuth("login");}}
       />
       {showPro&&<ProModal onClose={()=>setShowPro(false)} onSuccess={()=>setIsPro(true)} isPro={isPro}/>}
     </>);

@@ -98,6 +98,8 @@ export default async function handler(req, res) {
       .or(`slug.eq.${placeSlug},id.eq.${placeSlug}`).eq('status', 'published').limit(1);
     const place = data && data[0];
     if (place) {
+      // Besökarnas aggregerade recensioner (UGC → AggregateRating för SEO/AEO)
+      const { data: stats } = await supabase.from('place_review_stats').select('*').eq('place_id', place.id).maybeSingle();
       const m = getPlaceMeta(place, lang);
       title = m.title; desc = m.desc; image = place.img || defaultImg; ogType = 'article';
       const meta = [place.type, place.region, place.country].filter(Boolean).map(esc).join(' · ');
@@ -119,7 +121,10 @@ export default async function handler(req, res) {
       const bookHtml = (place.bookable && place.booking_url)
         ? `<p><a href="${esc(place.booking_url)}" rel="nofollow">${esc(L.book)} →</a></p>` : '';
 
-      body = `<article><h1>${esc(place.name)}</h1><p class="meta">${meta}${place.scary ? ` · ${esc(L.scary)}: ${esc(place.scary)}/5` : ''}</p>
+      const spookHtml = (stats && stats.review_count)
+        ? `<p class="reviews">${lang === 'en' ? 'Visitor scare rating' : 'Besökarnas spöklighet'}: ${esc(stats.avg_spook)}/5 (${esc(stats.review_count)} ${lang === 'en' ? 'reviews' : 'omdömen'})</p>` : '';
+
+      body = `<article><h1>${esc(place.name)}</h1><p class="meta">${meta}${place.scary ? ` · ${esc(L.scary)}: ${esc(place.scary)}/5` : ''}</p>${spookHtml}
 ${paras || `<p>${esc(place.teaser || '')}</p>`}${bookHtml}${faqHtml}${relHtml}
 <p><a href="${esc(origin + buildPath({ lang, view: 'home' }))}">${esc(L.home)}</a></p></article>`;
 
@@ -129,6 +134,7 @@ ${paras || `<p>${esc(place.teaser || '')}</p>`}${bookHtml}${faqHtml}${relHtml}
         image: place.img || undefined, url: placeUrl(origin, lang, place.slug || place.id),
         address: { '@type': 'PostalAddress', addressCountry: place.country || undefined, addressRegion: place.region || undefined },
         geo: (place.lat && place.lng) ? { '@type': 'GeoCoordinates', latitude: place.lat, longitude: place.lng } : undefined,
+        aggregateRating: (stats && stats.review_count) ? { '@type': 'AggregateRating', ratingValue: stats.avg_spook, bestRating: 5, worstRating: 1, ratingCount: stats.review_count } : undefined,
         isAccessibleForFree: place.free === true, inLanguage: lang,
       });
       jsonLdBlocks.push({

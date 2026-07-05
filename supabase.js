@@ -343,4 +343,39 @@ export async function createHunterOrder({ product, amount, notes }) {
   return data;
 }
 
+// ── PLATSRECENSIONER (knappval: upplevelse + spöklighet + taggar) ──
+export async function upsertPlaceReview({ place_id, experience, spook_level, tags = [], note = '' }) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Logga in först');
+  const row = { place_id, user_id: user.id, experience, spook_level, tags, note, updated_at: new Date().toISOString() };
+  const { data, error } = await supabase
+    .from('place_reviews').upsert(row, { onConflict: 'place_id,user_id' }).select().maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function fetchMyPlaceReview(placeId) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data, error } = await supabase
+    .from('place_reviews').select('*').eq('place_id', placeId).eq('user_id', user.id).maybeSingle();
+  if (error) { console.error('[Spokkartan] fetchMyPlaceReview:', error.message); return null; }
+  return data;
+}
+
+export async function fetchPlaceReviews(placeId, { limit = 20 } = {}) {
+  const { data, error } = await supabase
+    .from('place_reviews').select('*').eq('place_id', placeId)
+    .order('created_at', { ascending: false }).limit(limit);
+  if (error) { console.error('[Spokkartan] fetchPlaceReviews:', error.message); return []; }
+  return data || [];
+}
+
+export async function fetchPlaceReviewStats(placeId) {
+  const { data, error } = await supabase
+    .from('place_review_stats').select('*').eq('place_id', placeId).maybeSingle();
+  if (error) { console.error('[Spokkartan] fetchPlaceReviewStats:', error.message); return null; }
+  return data;
+}
+
 export default supabase;
