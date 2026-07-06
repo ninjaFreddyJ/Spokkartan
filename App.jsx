@@ -836,6 +836,20 @@ const TIERS = {
               perks:["Allt i Pro","Exklusivt innehåll & tidig tillgång","Featured spökjägar-synlighet","Prioriterad support"] },
 };
 const TIER_RANK = { free:0, explorer:1, pro:2, ultimate:3 };
+
+// Nivåstyrt innehåll. Avrättningsplats-batchen taggas min_tier='ultimate' → bara
+// Ultimate ser dem. På Spökkartan-domänen ingår de dock redan i PRO.
+function brandIsSpokkartan(){
+  return typeof window!=="undefined" && /spokkartan/i.test(window.location.hostname);
+}
+function placeMinTier(place){
+  let mt = place.min_tier || (place.free ? "free" : "explorer");
+  if(mt==="ultimate" && brandIsSpokkartan()) mt="pro";
+  return mt;
+}
+function placeLocked(place, tier){
+  return TIER_RANK[tier||"free"] < TIER_RANK[placeMinTier(place)];
+}
 // Stripe Payment Links per nivå. Pro (19 kr) = befintlig länk. Explorer (9) och
 // Ultimate (49) sätts via env (VITE_STRIPE_EXPLORER / VITE_STRIPE_ULTIMATE) i Vercel.
 const STRIPE_LINKS = {
@@ -911,8 +925,8 @@ function ProModal({onClose,onSuccess,isPro,currentTier}) {
 }
 
 // ── PLACE POPUP (map) ─────────────────────────────────────────
-function PlacePopup({place,isPro,onRead,onClose,onAddRoadtrip,inRoadtrip}) {
-  const locked=!place.free&&!isPro;
+function PlacePopup({place,isPro,tier,onRead,onClose,onAddRoadtrip,inRoadtrip}) {
+  const locked=placeLocked(place, tier);
   return(
     <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
       <div className="modal-sheet au" style={{padding:0,overflow:"hidden"}}>
@@ -1041,7 +1055,8 @@ function VisitReviewModal({ place, existing, onClose, onSaved }) {
 }
 
 function Reader({place,allPlaces,isPro,onClose,onNavigate,upgrade,roadtrip,setRoadtrip,visited,setVisited,user,onShare,onAuth}) {
-  const locked=!place.free&&!isPro;
+  const tier=user?.tier||(isPro?"pro":"free");
+  const locked=placeLocked(place, tier);
   // Build gallery: prefer place.images array, fallback to single img
   const gallery = (Array.isArray(place.images) && place.images.length > 0)
     ? place.images
@@ -1290,7 +1305,7 @@ function Reader({place,allPlaces,isPro,onClose,onNavigate,upgrade,roadtrip,setRo
                       {place.type==="Hotell"||place.type==="Herrgård"?"🏰 Fler hemsökta boenden":"👻 Liknande platser som kan intressera dig"}
                     </div>
                     {related.map(p=>{
-                      const lk=!p.free&&!isPro;
+                      const lk=placeLocked(p, tier);
                       return(
                         <div key={p.id} onClick={()=>onNavigate(p)} style={{display:"flex",gap:10,alignItems:"center",padding:"10px 12px",background:"var(--card)",border:"1px solid var(--b)",borderRadius:11,marginBottom:7,cursor:"pointer",transition:"border-color 0.15s"}} onTouchStart={e=>e.currentTarget.style.borderColor="var(--acc)"} onTouchEnd={e=>e.currentTarget.style.borderColor="var(--b)"}>
                           <div style={{width:40,height:40,borderRadius:8,background:"var(--bg3)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden"}}>
@@ -3347,7 +3362,7 @@ function LanguagePicker({ lang, setLang, langs, t }) {
 }
 
 // ── STORIES-VY (med tema-filter + bokningsbart-toggle) ───────
-function StoriesView({ places, isPro, onRead }) {
+function StoriesView({ places, isPro, tier, onRead }) {
   const [typeFilter, setTypeFilter] = useState("all");
   const [bookableOnly, setBookableOnly] = useState(false);
   const [search, setSearch] = useState("");
@@ -3421,7 +3436,7 @@ function StoriesView({ places, isPro, onRead }) {
         </div>
       ) : (
         <div className="stories-grid" style={{paddingBottom:80}}>
-          {filtered.map(p => <PlaceCard key={p.id} p={p} isPro={isPro} onClick={()=>onRead(p)}/>)}
+          {filtered.map(p => <PlaceCard key={p.id} p={p} isPro={isPro} tier={tier} onClick={()=>onRead(p)}/>)}
         </div>
       )}
     </div>
@@ -3429,8 +3444,8 @@ function StoriesView({ places, isPro, onRead }) {
 }
 
 // ── PLATSKORT (delad mellan stories-vy m.fl.) ────────────────
-function PlaceCard({ p, isPro, onClick }) {
-  const locked = !p.free && !isPro;
+function PlaceCard({ p, isPro, tier, onClick }) {
+  const locked = placeLocked(p, tier);
   const themeIcon = TYPE_ICON[p.type] || "📍";
   return (
     <div className="place-card" onClick={onClick}>
@@ -3978,7 +3993,7 @@ export default function App() {
 
         {/* STORIES */}
         {view==="stories"&&(
-          <StoriesView places={allPlacesMut} isPro={isPro} onRead={setReading}/>
+          <StoriesView places={allPlacesMut} isPro={isPro} tier={user?.tier||(isPro?"pro":"free")} onRead={setReading}/>
         )}
 
         {/* EBOOK */}
@@ -4068,7 +4083,7 @@ export default function App() {
       </div>
 
       {/* MAP PLACE POPUP */}
-      {mapSel&&<PlacePopup place={mapSel} isPro={isPro} onRead={p=>{setMapSel(null);setReading(p);}} onClose={()=>setMapSel(null)} onAddRoadtrip={id=>setRoadtrip(r=>r.includes(id)?r.filter(x=>x!==id):[...r,id])} inRoadtrip={roadtrip.includes(mapSel?.id)}/>}
+      {mapSel&&<PlacePopup place={mapSel} isPro={isPro} tier={user?.tier||(isPro?"pro":"free")} onRead={p=>{setMapSel(null);setReading(p);}} onClose={()=>setMapSel(null)} onAddRoadtrip={id=>setRoadtrip(r=>r.includes(id)?r.filter(x=>x!==id):[...r,id])} inRoadtrip={roadtrip.includes(mapSel?.id)}/>}
 
       {/* NOTIFICATION MODAL */}
       {showNotif&&<NotificationModal user={user} prefs={notifPrefs} setPrefs={setNotifPrefs} onClose={()=>setShowNotif(false)}/>}
