@@ -1674,7 +1674,6 @@ function BulletinBoard({user}) {
 function HuntersPage({user,setAuth,setView}) {
   const [search,setSearch]=useState("");
   const [openProfile,setOpenProfile]=useState(null);
-  const [showUpgrade,setShowUpgrade]=useState(false);
 
   // Slå ihop bas-datat med ev. registrerade spökjägare i USERS_DB
   const all = [
@@ -1726,7 +1725,6 @@ function HuntersPage({user,setAuth,setView}) {
           {isHunter && <div style={{background:"rgba(52,211,153,0.07)",border:"1px solid rgba(52,211,153,0.2)",borderRadius:10,padding:"9px 12px",fontSize:12,color:"#34d399",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap"}}>
             <span>✓ Du är verifierad spökjägare</span>
             <div style={{display:"flex",gap:6}}>
-              <button onClick={()=>setShowUpgrade(true)} style={{background:"rgba(124,58,237,0.18)",border:"1px solid #7c3aed",borderRadius:7,padding:"4px 10px",fontSize:11,fontWeight:600,color:"#a78bfa",cursor:"pointer"}}>✨ Uppgradera</button>
               <button onClick={()=>setView("board")} style={{background:"none",border:"1px solid rgba(52,211,153,0.35)",borderRadius:7,padding:"4px 10px",fontSize:11,fontWeight:600,color:"#34d399",cursor:"pointer"}}>Anslagstavla →</button>
             </div>
           </div>}
@@ -1784,40 +1782,14 @@ function HuntersPage({user,setAuth,setView}) {
           <div style={{fontSize:32,marginBottom:8}}>🔍</div>
           <div style={{fontSize:16,fontWeight:800,color:"var(--tx)",marginBottom:6}}>Är du spökjägare?</div>
           <p style={{fontSize:12,color:"var(--tx2)",lineHeight:1.65,marginBottom:14}}>
-            Skapa en profil — beskriv dig själv, ladda upp bilder, logga platser du varit på, markera bästa platsen och länka YouTube/IG/pod. Gratis att komma igång. Uppgradera till Premium (79 kr/mån) för att featuras emellanåt.
+            Skapa en profil — beskriv dig själv, ladda upp bilder, logga platser du varit på, markera bästa platsen och länka YouTube/IG/pod. Helt gratis.
           </p>
-          <Btn ch="Ansök om spökjägar-profil →" v="p" onClick={()=>user?setShowUpgrade(true):setAuth("register")}/>
-        </div>
-      </div>
-
-      {/* Premium-tiers info */}
-      <div style={{padding:"18px 14px 4px"}}>
-        <div style={{fontSize:11,fontWeight:700,color:"var(--tx3)",letterSpacing:1.5,textTransform:"uppercase",marginBottom:9}}>✨ Synas mer som spökjägare</div>
-        <div style={{display:"grid",gap:9}}>
-          {Object.entries(HUNTER_TIERS).filter(([k])=>k!=="free").map(([code,t])=>(
-            <div key={code} style={{background:"var(--card)",border:`1px solid ${t.color}55`,borderTop:`3px solid ${t.color}`,borderRadius:11,padding:"12px 14px"}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:5}}>
-                <div>
-                  <div style={{fontSize:13,fontWeight:800,color:t.color}}>{t.label}</div>
-                  <div style={{fontSize:11,color:"var(--tx3)",marginTop:1,lineHeight:1.45}}>{t.pitch}</div>
-                </div>
-                <div style={{textAlign:"right",flexShrink:0}}>
-                  <div style={{fontSize:18,fontWeight:800,color:t.color}}>{t.price.toLocaleString("sv-SE")} kr</div>
-                  {t.period && <div style={{fontSize:9,color:"var(--tx4)"}}>{t.period}</div>}
-                </div>
-              </div>
-              <ul style={{listStyle:"none",padding:0,margin:"4px 0 8px",display:"grid",gap:3}}>
-                {t.perks.map((perk,i)=>(<li key={i} style={{fontSize:11,color:"var(--tx2)",display:"flex",gap:6}}><span style={{color:t.color}}>✓</span> {perk}</li>))}
-              </ul>
-              <Btn ch={code==="article"?"Beställ artikel →":`Uppgradera till ${t.label} →`} v="ghost" sz="sm" onClick={()=>user?setShowUpgrade(true):setAuth("login")}/>
-            </div>
-          ))}
+          <Btn ch="Ansök om spökjägar-profil →" v="p" onClick={()=>{ if(!user) setAuth("register"); }}/>
         </div>
       </div>
 
       {/* MODALER */}
-      {openProfile && <HunterDetailModal h={openProfile} user={user} onClose={()=>setOpenProfile(null)} onUpgrade={()=>{setOpenProfile(null);setShowUpgrade(true);}}/>}
-      {showUpgrade && <HunterUpgradeModal user={user} onClose={()=>setShowUpgrade(false)}/>}
+      {openProfile && <HunterDetailModal h={openProfile} user={user} onClose={()=>setOpenProfile(null)}/>}
     </div>
   );
 }
@@ -1965,12 +1937,10 @@ function HunterDetailModal({ h, user, onClose, onUpgrade }) {
             )}
           </div>
 
-          {/* ÄR DETTA DU? — uppgradera */}
           {user && user.id === h.id && (
             <div style={{padding:"11px 13px",background:"rgba(124,58,237,0.08)",border:"1px solid rgba(124,58,237,0.3)",borderRadius:10}}>
               <div style={{fontSize:11,fontWeight:700,color:"#a78bfa",marginBottom:4}}>Det här är din profil</div>
-              <div style={{fontSize:11,color:"var(--tx3)",marginBottom:8,lineHeight:1.5}}>Vill du synas mer? Uppgradera till Premium (79 kr/mån) för att featuras emellanåt eller Spotlight (129 kr/mån) för permanent topp-placering.</div>
-              <Btn ch="✨ Se uppgraderingar" v="p" sz="sm" onClick={onUpgrade}/>
+              <div style={{fontSize:11,color:"var(--tx3)",lineHeight:1.5}}>Uppdatera din bio, bilder och besökta platser när du vill.</div>
             </div>
           )}
         </div>
