@@ -824,66 +824,87 @@ function AuthModal({initMode,onClose,onSuccess}) {
 }
 
 // ── PRO MODAL ─────────────────────────────────────────────────
-function ProModal({onClose,onSuccess,isPro}) {
-  const [step,setStep]=useState("pick"); // pick | done
-  const [method,setMethod]=useState("");
-  const [loading,setLoading]=useState(false);
+// ── MEDLEMSNIVÅER ─────────────────────────────────────────────
+const TIERS = {
+  free:     { label:"Free",     price:0,  color:"#6b7280",
+              perks:["Bläddra kartan","Gratis-platser","Recensera platser du besökt","Bocka av besökta"] },
+  explorer: { label:"Explorer", price:9,  color:"#34d399",
+              perks:["Allt i Free","Alla 308+ platser upplåsta","GPS-koordinater & navigering"] },
+  pro:      { label:"Pro",      price:19, color:"#a78bfa", popular:true,
+              perks:["Allt i Explorer","Roadtrip-planerare","E-bok-builder","Anslagstavlan","Push-prioritet"] },
+  ultimate: { label:"Ultimate", price:49, color:"#fbbf24",
+              perks:["Allt i Pro","Exklusivt innehåll & tidig tillgång","Featured spökjägar-synlighet","Prioriterad support"] },
+};
+const TIER_RANK = { free:0, explorer:1, pro:2, ultimate:3 };
+// Stripe Payment Links per nivå. Pro (19 kr) = befintlig länk. Explorer (9) och
+// Ultimate (49) sätts via env (VITE_STRIPE_EXPLORER / VITE_STRIPE_ULTIMATE) i Vercel.
+const STRIPE_LINKS = {
+  explorer: (typeof import.meta!=="undefined" && import.meta.env && import.meta.env.VITE_STRIPE_EXPLORER) || "",
+  pro:      (typeof import.meta!=="undefined" && import.meta.env && import.meta.env.VITE_STRIPE_PRO) || "https://buy.stripe.com/9B614m3av07GcsJdCG3oA02",
+  ultimate: (typeof import.meta!=="undefined" && import.meta.env && import.meta.env.VITE_STRIPE_ULTIMATE) || "",
+};
 
-  function pay(m){
-    setMethod(m);setLoading(true);
-    // Redirect to Stripe Payment Link — intro for new users (19kr), full for upgraders
-    const url = isPro ? "https://buy.stripe.com/5kQ3cu12naMk64l8im3oA03" : "https://buy.stripe.com/9B614m3av07GcsJdCG3oA02";
-    setTimeout(()=>{ window.location.href = url; }, 200);
+function ProModal({onClose,onSuccess,isPro,currentTier}) {
+  const cur = currentTier || (isPro?"pro":"free");
+  const [loading,setLoading]=useState("");
+  const [err,setErr]=useState("");
+
+  function choose(code){
+    const link=STRIPE_LINKS[code];
+    if(!link){ setErr(`Betallänk för ${TIERS[code].label} är inte inlagd ännu. Hör av dig så aktiverar vi den.`); return; }
+    setLoading(code); setErr("");
+    setTimeout(()=>{ window.location.href=link; }, 150);
   }
 
+  const paid=["explorer","pro","ultimate"];
   return(
     <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
-      <div className="modal-sheet au">
+      <div className="modal-sheet au" style={{maxHeight:"92vh",overflowY:"auto"}}>
         <div className="modal-handle"/>
         <button onClick={onClose} style={{position:"absolute",top:16,right:16,background:"none",border:"none",color:"var(--tx3)",cursor:"pointer",fontSize:22,padding:4}}>✕</button>
 
-        {step==="pick"&&(
-          <>
-            <div style={{textAlign:"center",marginBottom:16}}>
-              <div style={{fontSize:38,marginBottom:8}} className="af">👻</div>
-              <h2 style={{fontSize:20,fontWeight:800,color:"var(--tx)",marginBottom:4}}>Ghost Hunter PRO</h2>
-              {/* 19 kr offer */}
-              <div style={{background:"rgba(212,175,55,0.1)",border:"1px solid rgba(212,175,55,0.35)",borderRadius:12,padding:"12px 16px",margin:"12px 0",textAlign:"left"}}>
-                <div style={{fontSize:13,fontWeight:700,color:"#d4af37",marginBottom:2}}>🎉 Introduktionserbjudande</div>
-                <div style={{display:"flex",alignItems:"baseline",gap:8}}>
-                  <span style={{fontSize:28,fontWeight:900,color:"#d4af37"}}>19 kr</span>
-                  <span style={{fontSize:13,color:"var(--tx3)"}}>första månaden</span>
+        <div style={{textAlign:"center",marginBottom:14}}>
+          <div style={{fontSize:34,marginBottom:6}} className="af">👻</div>
+          <h2 style={{fontSize:20,fontWeight:800,color:"var(--tx)",marginBottom:3}}>Välj din nivå</h2>
+          <p style={{fontSize:12,color:"var(--tx3)"}}>Uppgradera när du vill · Avbryt när du vill</p>
+        </div>
+
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          {paid.map(code=>{
+            const t=TIERS[code];
+            const isCur=cur===code;
+            const owned=TIER_RANK[cur]>=TIER_RANK[code];
+            return(
+              <div key={code} style={{border:`1px solid ${isCur?t.color:"var(--b)"}`,borderRadius:14,padding:"14px 16px",background:isCur?`${t.color}14`:"var(--bg3)",position:"relative"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:8}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <span style={{fontSize:15,fontWeight:800,color:t.color}}>{t.label}</span>
+                    {t.popular&&<span style={{fontSize:9,fontWeight:700,color:"#0a0517",background:t.color,borderRadius:6,padding:"2px 6px"}}>POPULÄRAST</span>}
+                    {isCur&&<span style={{fontSize:9,fontWeight:700,color:"var(--tx3)",border:"1px solid var(--b)",borderRadius:6,padding:"2px 6px"}}>NUVARANDE</span>}
+                  </div>
+                  <div style={{fontSize:13,color:"var(--tx3)"}}><b style={{fontSize:19,color:"var(--tx)"}}>{t.price} kr</b>/mån</div>
                 </div>
-                <div style={{fontSize:11,color:"var(--tx4)",marginTop:2}}>Sedan 49 kr/mån · Avbryt när som helst</div>
+                <div style={{marginBottom:12}}>
+                  {t.perks.map(f=>(
+                    <div key={f} style={{fontSize:12,color:"var(--tx2)",display:"flex",gap:8,alignItems:"center",padding:"3px 0"}}>
+                      <span style={{color:t.color,fontSize:11}}>✓</span>{f}
+                    </div>
+                  ))}
+                </div>
+                {owned?(
+                  <div style={{textAlign:"center",fontSize:12,fontWeight:600,color:"var(--tx4)",padding:"10px"}}>✓ Ingår i din nivå</div>
+                ):(
+                  <button onClick={()=>choose(code)} disabled={loading===code} style={{width:"100%",background:t.color,color:"#0a0517",border:"none",borderRadius:11,padding:"12px",fontSize:14,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+                    {loading===code?<Spinner/>:`Välj ${t.label} →`}
+                  </button>
+                )}
               </div>
-            </div>
-            {/* What you get */}
-            <div style={{background:"var(--bg3)",borderRadius:11,padding:"12px 14px",marginBottom:16}}>
-              {["Alla 308+ platser upplåsta","GPS-koordinater & navigering","Roadtrip-planerare","Anslagstavlan (spökjägare)","E-bok-builder — alla platser"].map(f=>(
-                <div key={f} style={{fontSize:12,color:"var(--tx2)",display:"flex",gap:8,alignItems:"center",padding:"4px 0"}}>
-                  <span style={{color:"#34d399",fontSize:11}}>✓</span>{f}
-                </div>
-              ))}
-            </div>
-            {/* Payment methods (Stripe Checkout handles Card, Swish, Klarna) */}
-            <div style={{display:"flex",flexDirection:"column",gap:10}}>
-              {[["🔒","Fortsätt till säker betalning →"]].map(([icon,label],i)=>(
-                <button key={i} onClick={()=>pay(label)} disabled={loading} style={{background:"var(--bg3)",border:"1px solid var(--b)",borderRadius:13,padding:"14px 16px",cursor:"pointer",display:"flex",gap:12,alignItems:"center",width:"100%",transition:"border-color 0.18s"}} onTouchStart={e=>e.currentTarget.style.borderColor="#7c3aed"} onTouchEnd={e=>e.currentTarget.style.borderColor="var(--b)"}>
-                  <span style={{fontSize:22}}>{loading&&method===label?<Spinner/>:icon}</span>
-                  <span style={{fontSize:14,fontWeight:500,color:"var(--tx)"}}>{label}</span>
-                </button>
-              ))}
-            </div>
-            <div style={{textAlign:"center",fontSize:11,color:"var(--tx4)",marginTop:12}}>🔒 Säker betalning · Ingen bindningstid</div>
-          </>
-        )}
-        {step==="done"&&(
-          <div style={{textAlign:"center",padding:"20px 0"}}>
-            <div style={{fontSize:52,marginBottom:12}}>🎉</div>
-            <h2 style={{fontSize:20,fontWeight:800,color:"var(--tx)",marginBottom:6}}>Välkommen, Ghost Hunter!</h2>
-            <p style={{fontSize:13,color:"var(--tx2)"}}>Alla 308 platser är nu upplåsta. Laddar…</p>
-          </div>
-        )}
+            );
+          })}
+        </div>
+
+        {err&&<div style={{background:"rgba(248,113,113,0.12)",border:"1px solid rgba(248,113,113,0.35)",borderRadius:9,padding:"10px 13px",fontSize:12,color:"#f87171",marginTop:14}}>{err}</div>}
+        <div style={{textAlign:"center",fontSize:11,color:"var(--tx4)",marginTop:14}}>🔒 Säker betalning via Stripe · Ingen bindningstid</div>
       </div>
     </div>
   );
@@ -3751,6 +3772,7 @@ export default function App() {
         avatar: profile?.avatar_url || session.user.user_metadata?.avatar_url || '',
         role: profile?.role || 'user',
         pro: profile?.is_pro || false,
+        tier: (profile?.tier && profile.tier !== 'free') ? profile.tier : (profile?.is_pro ? 'pro' : 'free'),
         bio: profile?.bio || '',
         verified: false,
       };
@@ -3874,7 +3896,7 @@ export default function App() {
         onShare={(title,url)=>setShareData({title,url})}
         onAuth={()=>{setReading(null);setAuth("login");}}
       />
-      {showPro&&<ProModal onClose={()=>setShowPro(false)} onSuccess={()=>setIsPro(true)} isPro={isPro}/>}
+      {showPro&&<ProModal onClose={()=>setShowPro(false)} onSuccess={()=>setIsPro(true)} isPro={isPro} currentTier={user?.tier||(isPro?"pro":"free")}/>}
     </>);
   }
 
@@ -3907,9 +3929,9 @@ export default function App() {
             <button onClick={()=>setShowNotif(true)} style={{background:notifPrefs.enabled?"rgba(124,58,237,0.15)":"var(--bg3)",border:`1px solid ${notifPrefs.enabled?"var(--acc)":"var(--b)"}`,borderRadius:9,padding:"6px 9px",cursor:"pointer",fontSize:14,position:"relative"}}>
               🔔{notifPrefs.enabled&&<span style={{position:"absolute",top:3,right:3,width:6,height:6,borderRadius:"50%",background:"var(--acc)",border:"1px solid var(--bg)"}}/>}
             </button>
-            {isPro&&<Tag ch="PRO ✓" c="var(--acc)"/>}
-            {!isPro&&<Btn ch="PRO" v="p" sz="sm" onClick={upgrade}/>}
-            {isPro&&<button onClick={()=>setShowCancel(true)} style={{background:"none",border:"none",fontSize:10,color:"var(--tx4)",cursor:"pointer",padding:"4px"}}>Avsluta PRO</button>}
+            {isPro&&<Tag ch={`${(user&&TIERS[user.tier]&&TIERS[user.tier].label)||"PRO"} ✓`} c="var(--acc)"/>}
+            {!isPro&&<Btn ch="Uppgradera" v="p" sz="sm" onClick={upgrade}/>}
+            {isPro&&<button onClick={()=>setShowCancel(true)} style={{background:"none",border:"none",fontSize:10,color:"var(--tx4)",cursor:"pointer",padding:"4px"}}>Avsluta</button>}
             <button onClick={async()=>{await supabaseSignOut().catch(()=>{});setUser(null);setIsPro(false);setView("home");}} style={{background:"var(--bg3)",border:"1px solid var(--b)",borderRadius:20,padding:"5px 10px",fontSize:11,fontWeight:500,color:"var(--tx3)",cursor:"pointer"}}>{user.name?.split(" ")[0]} ✕</button>
           </div>
         ):(
@@ -4087,7 +4109,7 @@ export default function App() {
       {auth&&<AuthModal initMode={auth} onClose={()=>setAuth(null)} onSuccess={u=>{setUser(u);setIsPro(u.pro||false);setAuth(null);if(u.role==="admin")setView("admin");}}/>}
 
       {/* PRO MODAL */}
-      {showPro&&<ProModal onClose={()=>setShowPro(false)} onSuccess={()=>setIsPro(true)} isPro={isPro}/>}
+      {showPro&&<ProModal onClose={()=>setShowPro(false)} onSuccess={()=>setIsPro(true)} isPro={isPro} currentTier={user?.tier||(isPro?"pro":"free")}/>}
       {showBecomePartner&&<BecomePartnerModal user={user} onClose={()=>setShowBecomePartner(false)} onSuccess={()=>{setShowBecomePartner(false); alert("✅ Tack! Din ansökan är inskickad. Vi godkänner inom 24h och skickar bokstavligen e-post.");}}/>}
 
       {/* SHARE MODAL */}
