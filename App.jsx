@@ -3714,27 +3714,39 @@ export default function App() {
     // Referral: spara vännens kod så den kan skickas med vid registrering.
     const ref = params.get('ref');
     if (ref) { try { localStorage.setItem('spok_ref', ref.trim()); } catch (e) {} }
-    if (params.get('welcome') === 'pro') {
+    // Stripe Payment Links lägger till session_id i retur-URL:en.
+    const sessionId = params.get('session_id') || params.get('cs');
+    const welcomed = params.get('welcome') === 'pro' || !!sessionId;
+
+    // Ladda om profilen så rätt tier speglas direkt efter betalning.
+    const refreshTier = async () => {
+      try {
+        const session = await getSession();
+        if (!session?.user) return;
+        const profile = await getProfile(session.user.id);
+        if (profile) {
+          const t = (profile.tier && profile.tier !== 'free') ? profile.tier : 'pro';
+          setUser(u => u ? { ...u, tier: t, pro: true } : u);
+          setIsPro(true);
+        }
+      } catch (e) { /* tyst */ }
+    };
+
+    if (sessionId) {
+      // INSTANT AKTIVERING: verifiera betalningen direkt mot Stripe och sätt
+      // nivån på sekunden — utan att vänta på webhooken.
       setIsPro(true);
-      // Ladda om profilen så rätt tier (t.ex. ultimate) speglas direkt efter
-      // betalning. Stripe-webhooken kan dröja någon sekund → försök två gånger.
-      const refreshTier = async () => {
-        try {
-          const session = await getSession();
-          if (!session?.user) return;
-          const profile = await getProfile(session.user.id);
-          if (profile) {
-            const t = (profile.tier && profile.tier !== 'free') ? profile.tier : 'pro';
-            setUser(u => u ? { ...u, tier: t, pro: true } : u);
-            setIsPro(true);
-          }
-        } catch (e) { /* tyst */ }
-      };
+      fetch(`/api/stripe-confirm?cs=${encodeURIComponent(sessionId)}`)
+        .then(r => r.json()).catch(() => null)
+        .then(() => { refreshTier(); setTimeout(refreshTier, 3000); });
+    } else if (welcomed) {
+      setIsPro(true);
       refreshTier();
       setTimeout(refreshTier, 4000);
     }
+
     // Städa URL:en om vi konsumerade en param
-    if (ref || params.get('welcome')) {
+    if (ref || welcomed) {
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, []);
