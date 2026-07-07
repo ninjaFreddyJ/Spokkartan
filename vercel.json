@@ -1,13 +1,17 @@
 {
+  "crons": [
+    { "path": "/api/cron-nurture", "schedule": "0 * * * *" }
+  ],
   "rewrites": [
     { "source": "/sitemap.xml", "destination": "/api/sitemap.xml" },
-    { "source": "/robots.txt", "destination": "/robots.txt" },
+    { "source": "/robots.txt", "destination": "/api/robots" },
+    { "source": "/llms.txt", "destination": "/api/llms" },
     {
-      "source": "/:lang(sv|en|de|no|da)/:seg(plats|place|ort|sted)/:slug",
+      "source": "/:path*",
       "has": [
-        { "type": "header", "key": "user-agent", "value": ".*(facebookexternalhit|Facebot|Twitterbot|WhatsApp|Slackbot|LinkedInBot|Discordbot|TelegramBot|Pinterest|redditbot|Embedly|vkShare|Applebot|Googlebot).*" }
+        { "type": "header", "key": "user-agent", "value": ".*(facebookexternalhit|Facebot|Twitterbot|WhatsApp|Slackbot|LinkedInBot|Discordbot|TelegramBot|Pinterest|redditbot|Embedly|vkShare|Applebot|Applebot-Extended|Googlebot|Google-Extended|Bingbot|DuckDuckBot|Slurp|YandexBot|Baiduspider|OAI-SearchBot|ChatGPT-User|GPTBot|PerplexityBot|Perplexity-User|ClaudeBot|Claude-SearchBot|Anthropic|Amazonbot|Bytespider|CCBot).*" }
       ],
-      "destination": "/api/og?slug=:slug&lang=:lang"
+      "destination": "/api/prerender?path=/:path*"
     },
     { "source": "/(.*)", "destination": "/" }
   ],

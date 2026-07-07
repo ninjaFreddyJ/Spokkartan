@@ -1,7 +1,7 @@
 
 // SPÖKKARTAN v7 — Mobile-first, working auth, clean navigation
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { fetchPlaces, subscribeToPlaces, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut as supabaseSignOut, getProfile, onAuthChange, getSession, fetchPartners, createPartner, fetchPartnerPackages, submitPartnerQuestion, fetchPartnerQuestions, updatePartnerQuestion, fetchHunters, fetchHunterVisits, updateHunterProfile, upsertHunterVisit, createHunterOrder, submitPlaceSuggestion, fetchPlaceSuggestions, updatePlaceSuggestion, deletePlaceSuggestion, savePushSubscription, removePushSubscription } from "./supabase";
+import { fetchPlaces, subscribeToPlaces, signInWithGoogle, signInWithEmail, signUpWithEmail, resetPasswordForEmail, signOut as supabaseSignOut, getProfile, onAuthChange, getSession, fetchPartners, createPartner, fetchPartnerPackages, submitPartnerQuestion, fetchPartnerQuestions, updatePartnerQuestion, fetchHunters, fetchHunterVisits, updateHunterProfile, upsertHunterVisit, submitPlaceSuggestion, fetchPlaceSuggestions, updatePlaceSuggestion, deletePlaceSuggestion, savePushSubscription, removePushSubscription, upsertPlaceReview, fetchMyPlaceReview, fetchPlaceReviewStats } from "./supabase";
 
 // Web-push: publik VAPID-nyckel (publik = ofarlig att baka in). Sätt
 // VITE_VAPID_PUBLIC_KEY i Vercel för att rotera. Privata nyckeln ligger ENDAST
@@ -545,6 +545,18 @@ function SpokMap({places,onSelect}) {
   );
 }
 
+// Översätt Supabase auth-fel till begriplig svenska
+function authErrMsg(e){
+  const m=(e&&e.message)||String(e||"");
+  if(/already registered|already exists|User already/i.test(m)) return "E-posten är redan registrerad. Logga in i stället.";
+  if(/Invalid login credentials/i.test(m)) return "Fel e-post eller lösenord.";
+  if(/Email not confirmed/i.test(m)) return "Bekräfta din e-post först — kolla inkorgen (och skräpposten).";
+  if(/rate limit|too many/i.test(m)) return "För många försök. Vänta en stund och prova igen.";
+  if(/password/i.test(m)&&/least|short|6/i.test(m)) return "Lösenordet måste vara minst 6 tecken.";
+  if(/network|fetch|Failed to fetch/i.test(m)) return "Nätverksfel — kontrollera uppkopplingen och försök igen.";
+  return m || "Något gick fel. Försök igen.";
+}
+
 // ── AUTH MODAL ────────────────────────────────────────────────
 function AuthModal({initMode,onClose,onSuccess}) {
   const [mode,setMode]=useState(initMode||"login");
@@ -566,37 +578,84 @@ function AuthModal({initMode,onClose,onSuccess}) {
   async function doLogin(e){
     e?.preventDefault();
     setErr("");setLoading(true);
-    await new Promise(r=>setTimeout(r,600));
     const key=email.trim().toLowerCase();
-    const u=USERS_DB[key];
-    if(!u||u.pass!==pass){setErr("Fel e-post eller lösenord.");setLoading(false);return;}
-    onSuccess(u);
+    // Lokal admin-genväg: ägaren ska aldrig kunna låsas ute även om
+    // admin-kontot inte finns i Supabase ännu.
+    const local=USERS_DB[key];
+    if(local && local.role==="admin" && local.pass===pass){
+      setLoading(false);
+      onSuccess(local);
+      return;
+    }
+    // Riktig inloggning mot Supabase Auth.
+    try{
+      await signInWithEmail(key,pass);
+      // onAuthChange (SIGNED_IN) i App laddar profilen och sätter user-state.
+      setLoading(false);
+      onClose();
+    }catch(err){
+      setLoading(false);
+      setErr(authErrMsg(err));
+    }
   }
   async function doRegister(e){
     e?.preventDefault();
-    setErr("");setLoading(true);
-    await new Promise(r=>setTimeout(r,700));
-    if(!name.trim()||!email.trim()||!pass){setErr("Fyll i namn, e-post och lösenord.");setLoading(false);return;}
-    if(pass.length<6){setErr("Lösenordet måste vara minst 6 tecken.");setLoading(false);return;}
+    setErr("");setMsg("");
+    if(!name.trim()||!email.trim()||!pass){setErr("Fyll i namn, e-post och lösenord.");return;}
+    if(pass.length<6){setErr("Lösenordet måste vara minst 6 tecken.");return;}
+    setLoading(true);
     const key=email.trim().toLowerCase();
-    if(USERS_DB[key]){setErr("E-posten är redan registrerad.");setLoading(false);return;}
-    const u={id:`u${Date.now()}`,name:name.trim(),email:key,pass,
-      role:isHunter?"pending_hunter":"user",pro:false,
-      bio,yt,ig,fb:"",created:new Date().toISOString().slice(0,10),
-      verified:!isHunter,avatar:""};
-    USERS_DB[key]=u;
-    onSuccess(u);
+    try{
+      // Skapa riktigt konto i Supabase. is_hunter/bio/socials/ref/lang följer
+      // med som metadata och fångas upp av DB-triggern handle_new_user.
+      let refCode=""; try{ refCode=localStorage.getItem("spok_ref")||""; }catch(_){}
+      const lang=(typeof document!=="undefined"&&document.documentElement.lang)||"sv";
+      const data=await signUpWithEmail(key,pass,name.trim(),{
+        is_hunter:isHunter,
+        lang,
+        ...(refCode?{ref:refCode}:{}),
+        ...(isHunter?{role:"pending_hunter",bio,yt,ig}:{}),
+      });
+      if(refCode){ try{ localStorage.removeItem("spok_ref"); }catch(_){} }
+      setLoading(false);
+      if(data?.session){
+        // Direkt inloggad (e-postbekräftelse avstängd) — onAuthChange sätter user.
+        onClose();
+      }else{
+        // E-postbekräftelse krävs innan man kan logga in.
+        setMode("login");
+        setPass("");
+        setMsg(`✅ Konto skapat! Vi skickade ett bekräftelsemejl till ${key}. Klicka på länken och logga sedan in.`);
+      }
+    }catch(err){
+      setLoading(false);
+      setErr(authErrMsg(err));
+    }
   }
   async function doRecovSend(e){
     e?.preventDefault();
     setErr("");setLoading(true);
-    await new Promise(r=>setTimeout(r,800));
-    const u=USERS_DB[recovEmail.trim().toLowerCase()];
-    if(!u){setErr("Ingen användare med den e-postadressen.");setLoading(false);return;}
-    const code=String(Math.floor(100000+Math.random()*900000));
-    setGenCode(code);
-    setMsg(`Kod skickad! (Demo: koden är ${code})`);
-    setMode("recov_code");setLoading(false);
+    const key=recovEmail.trim().toLowerCase();
+    if(!key){setErr("Ange din e-postadress.");setLoading(false);return;}
+    // Lokal admin: behåll demo-kodflödet (admin finns inte i Supabase Auth).
+    const local=USERS_DB[key];
+    if(local && local.role==="admin"){
+      const code=String(Math.floor(100000+Math.random()*900000));
+      setGenCode(code);
+      setMsg(`Kod skickad! (Demo: koden är ${code})`);
+      setMode("recov_code");setLoading(false);
+      return;
+    }
+    // Riktiga användare: skicka återställningslänk via Supabase.
+    try{
+      await resetPasswordForEmail(key);
+      setLoading(false);
+      setMode("login");
+      setMsg(`✅ Om ${key} finns hos oss har vi skickat en återställningslänk. Kolla inkorgen (och skräpposten).`);
+    }catch(err){
+      setLoading(false);
+      setErr(authErrMsg(err));
+    }
   }
   async function doRecovCode(e){
     e?.preventDefault();
@@ -709,19 +768,6 @@ function AuthModal({initMode,onClose,onSuccess}) {
                 <button type="button" onClick={()=>setShowP(s=>!s)} style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:16,color:"var(--tx3)",padding:4}}>{showP?"🙈":"👁️"}</button>
               </div>
             </div>
-            <label style={{display:"flex",gap:10,alignItems:"flex-start",cursor:"pointer",background:"var(--bg3)",border:`1px solid ${isHunter?"#7c3aed":"var(--b)"}`,borderRadius:11,padding:"12px 13px",transition:"border-color 0.2s"}}>
-              <input type="checkbox" checked={isHunter} onChange={e=>setIsHunter(e.target.checked)} style={{accentColor:"#7c3aed",width:18,height:18,marginTop:1,flexShrink:0}}/>
-              <div><div style={{fontSize:13,fontWeight:600,color:"var(--tx)"}}>🔍 Registrera mig som Spökjägare</div><div style={{fontSize:11,color:"var(--tx4)",marginTop:2}}>Kräver verifiering av admin. Ger tillgång till Anslagstavlan.</div></div>
-            </label>
-            {isHunter&&(
-              <>
-                <div><label style={lbl}>BIO (valfritt)</label><textarea className="inp" value={bio} onChange={e=>setBio(e.target.value)} rows={2} style={{resize:"none"}} placeholder="Berätta om din spökjakt…"/></div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                  <div><label style={lbl}>YOUTUBE</label><input className="inp inp-sm" value={yt} onChange={e=>setYt(e.target.value)} placeholder="youtube.com/…"/></div>
-                  <div><label style={lbl}>INSTAGRAM</label><input className="inp inp-sm" value={ig} onChange={e=>setIg(e.target.value)} placeholder="instagram.com/…"/></div>
-                </div>
-              </>
-            )}
             {err&&<div style={{background:"rgba(248,113,113,0.12)",border:"1px solid rgba(248,113,113,0.35)",borderRadius:9,padding:"10px 13px",fontSize:13,color:"#f87171"}}>{err}</div>}
             <button type="submit" className="btn btn-p btn-full" disabled={loading}>{loading?<Spinner/>:"Skapa konto →"}</button>
             <div style={{textAlign:"center",fontSize:12,color:"var(--tx4)"}}>Har konto? <span style={{color:"#a78bfa",cursor:"pointer"}} onClick={()=>{setMode("login");setErr("");setMsg("");}}>Logga in</span></div>
@@ -765,74 +811,109 @@ function AuthModal({initMode,onClose,onSuccess}) {
 }
 
 // ── PRO MODAL ─────────────────────────────────────────────────
-function ProModal({onClose,onSuccess,isPro}) {
-  const [step,setStep]=useState("pick"); // pick | done
-  const [method,setMethod]=useState("");
-  const [loading,setLoading]=useState(false);
+// ── MEDLEMSNIVÅER ─────────────────────────────────────────────
+const TIERS = {
+  free:     { label:"Free",     price:0,  color:"#6b7280",
+              perks:["Bläddra kartan","Gratis-platser","Recensera platser du besökt","Bocka av besökta"] },
+  explorer: { label:"Explorer", price:9,  color:"#34d399",
+              perks:["Allt i Free","Alla 308+ platser upplåsta","GPS-koordinater & navigering"] },
+  pro:      { label:"Pro",      price:19, color:"#a78bfa", popular:true,
+              perks:["Allt i Explorer","Roadtrip-planerare","E-bok-builder","Anslagstavlan","Push-prioritet"] },
+  ultimate: { label:"Ultimate", price:49, color:"#fbbf24",
+              perks:["Allt i Pro","Exklusivt innehåll & tidig tillgång","Featured spökjägar-synlighet","Prioriterad support"] },
+};
+const TIER_RANK = { free:0, explorer:1, pro:2, ultimate:3 };
 
-  function pay(m){
-    setMethod(m);setLoading(true);
-    // Redirect to Stripe Payment Link — intro for new users (19kr), full for upgraders
-    const url = isPro ? "https://buy.stripe.com/5kQ3cu12naMk64l8im3oA03" : "https://buy.stripe.com/9B614m3av07GcsJdCG3oA02";
-    setTimeout(()=>{ window.location.href = url; }, 200);
+// Nivåstyrt innehåll. Avrättningsplats-batchen taggas min_tier='ultimate' → bara
+// Ultimate ser dem. På Spökkartan-domänen ingår de dock redan i PRO.
+function brandIsSpokkartan(){
+  return typeof window!=="undefined" && /spokkartan/i.test(window.location.hostname);
+}
+function placeMinTier(place){
+  let mt = place.min_tier || (place.free ? "free" : "explorer");
+  if(mt==="ultimate" && brandIsSpokkartan()) mt="pro";
+  return mt;
+}
+function placeLocked(place, tier){
+  return TIER_RANK[tier||"free"] < TIER_RANK[placeMinTier(place)];
+}
+// Stripe Payment Links per nivå. Pro (19 kr) = befintlig länk. Explorer (9) och
+// Ultimate (49) sätts via env (VITE_STRIPE_EXPLORER / VITE_STRIPE_ULTIMATE) i Vercel.
+const STRIPE_LINKS = {
+  explorer: (typeof import.meta!=="undefined" && import.meta.env && import.meta.env.VITE_STRIPE_EXPLORER) || "",
+  pro:      (typeof import.meta!=="undefined" && import.meta.env && import.meta.env.VITE_STRIPE_PRO) || "https://buy.stripe.com/9B614m3av07GcsJdCG3oA02",
+  ultimate: (typeof import.meta!=="undefined" && import.meta.env && import.meta.env.VITE_STRIPE_ULTIMATE) || "",
+};
+
+function ProModal({onClose,onSuccess,isPro,currentTier}) {
+  const cur = currentTier || (isPro?"pro":"free");
+  const [loading,setLoading]=useState("");
+  const [err,setErr]=useState("");
+
+  function choose(code){
+    const link=STRIPE_LINKS[code];
+    if(!link){ setErr(`Betallänk för ${TIERS[code].label} är inte inlagd ännu. Hör av dig så aktiverar vi den.`); return; }
+    setLoading(code); setErr("");
+    setTimeout(()=>{ window.location.href=link; }, 150);
   }
 
+  const paid=["explorer","pro","ultimate"];
   return(
     <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
-      <div className="modal-sheet au">
+      <div className="modal-sheet au" style={{maxHeight:"92vh",overflowY:"auto"}}>
         <div className="modal-handle"/>
         <button onClick={onClose} style={{position:"absolute",top:16,right:16,background:"none",border:"none",color:"var(--tx3)",cursor:"pointer",fontSize:22,padding:4}}>✕</button>
 
-        {step==="pick"&&(
-          <>
-            <div style={{textAlign:"center",marginBottom:16}}>
-              <div style={{fontSize:38,marginBottom:8}} className="af">👻</div>
-              <h2 style={{fontSize:20,fontWeight:800,color:"var(--tx)",marginBottom:4}}>Ghost Hunter PRO</h2>
-              {/* 19 kr offer */}
-              <div style={{background:"rgba(212,175,55,0.1)",border:"1px solid rgba(212,175,55,0.35)",borderRadius:12,padding:"12px 16px",margin:"12px 0",textAlign:"left"}}>
-                <div style={{fontSize:13,fontWeight:700,color:"#d4af37",marginBottom:2}}>🎉 Introduktionserbjudande</div>
-                <div style={{display:"flex",alignItems:"baseline",gap:8}}>
-                  <span style={{fontSize:28,fontWeight:900,color:"#d4af37"}}>19 kr</span>
-                  <span style={{fontSize:13,color:"var(--tx3)"}}>första månaden</span>
+        <div style={{textAlign:"center",marginBottom:14}}>
+          <div style={{fontSize:34,marginBottom:6}} className="af">👻</div>
+          <h2 style={{fontSize:20,fontWeight:800,color:"var(--tx)",marginBottom:3}}>Välj din nivå</h2>
+          <p style={{fontSize:12,color:"var(--tx3)"}}>Uppgradera när du vill · Avbryt när du vill</p>
+        </div>
+
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          {paid.map(code=>{
+            const t=TIERS[code];
+            const isCur=cur===code;
+            const owned=TIER_RANK[cur]>=TIER_RANK[code];
+            return(
+              <div key={code} style={{border:`1px solid ${isCur?t.color:"var(--b)"}`,borderRadius:14,padding:"14px 16px",background:isCur?`${t.color}14`:"var(--bg3)",position:"relative"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:8}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <span style={{fontSize:15,fontWeight:800,color:t.color}}>{t.label}</span>
+                    {t.popular&&<span style={{fontSize:9,fontWeight:700,color:"#0a0517",background:t.color,borderRadius:6,padding:"2px 6px"}}>POPULÄRAST</span>}
+                    {isCur&&<span style={{fontSize:9,fontWeight:700,color:"var(--tx3)",border:"1px solid var(--b)",borderRadius:6,padding:"2px 6px"}}>NUVARANDE</span>}
+                  </div>
+                  <div style={{fontSize:13,color:"var(--tx3)"}}><b style={{fontSize:19,color:"var(--tx)"}}>{t.price} kr</b>/mån</div>
                 </div>
-                <div style={{fontSize:11,color:"var(--tx4)",marginTop:2}}>Sedan 49 kr/mån · Avbryt när som helst</div>
+                <div style={{marginBottom:12}}>
+                  {t.perks.map(f=>(
+                    <div key={f} style={{fontSize:12,color:"var(--tx2)",display:"flex",gap:8,alignItems:"center",padding:"3px 0"}}>
+                      <span style={{color:t.color,fontSize:11}}>✓</span>{f}
+                    </div>
+                  ))}
+                </div>
+                {owned?(
+                  <div style={{textAlign:"center",fontSize:12,fontWeight:600,color:"var(--tx4)",padding:"10px"}}>✓ Ingår i din nivå</div>
+                ):(
+                  <button onClick={()=>choose(code)} disabled={loading===code} style={{width:"100%",background:t.color,color:"#0a0517",border:"none",borderRadius:11,padding:"12px",fontSize:14,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+                    {loading===code?<Spinner/>:`Välj ${t.label} →`}
+                  </button>
+                )}
               </div>
-            </div>
-            {/* What you get */}
-            <div style={{background:"var(--bg3)",borderRadius:11,padding:"12px 14px",marginBottom:16}}>
-              {["Alla 308+ platser upplåsta","GPS-koordinater & navigering","Roadtrip-planerare","Anslagstavlan (spökjägare)","E-bok-builder — alla platser"].map(f=>(
-                <div key={f} style={{fontSize:12,color:"var(--tx2)",display:"flex",gap:8,alignItems:"center",padding:"4px 0"}}>
-                  <span style={{color:"#34d399",fontSize:11}}>✓</span>{f}
-                </div>
-              ))}
-            </div>
-            {/* Payment methods (Stripe Checkout handles Card, Swish, Klarna) */}
-            <div style={{display:"flex",flexDirection:"column",gap:10}}>
-              {[["🔒","Fortsätt till säker betalning →"]].map(([icon,label],i)=>(
-                <button key={i} onClick={()=>pay(label)} disabled={loading} style={{background:"var(--bg3)",border:"1px solid var(--b)",borderRadius:13,padding:"14px 16px",cursor:"pointer",display:"flex",gap:12,alignItems:"center",width:"100%",transition:"border-color 0.18s"}} onTouchStart={e=>e.currentTarget.style.borderColor="#7c3aed"} onTouchEnd={e=>e.currentTarget.style.borderColor="var(--b)"}>
-                  <span style={{fontSize:22}}>{loading&&method===label?<Spinner/>:icon}</span>
-                  <span style={{fontSize:14,fontWeight:500,color:"var(--tx)"}}>{label}</span>
-                </button>
-              ))}
-            </div>
-            <div style={{textAlign:"center",fontSize:11,color:"var(--tx4)",marginTop:12}}>🔒 Säker betalning · Ingen bindningstid</div>
-          </>
-        )}
-        {step==="done"&&(
-          <div style={{textAlign:"center",padding:"20px 0"}}>
-            <div style={{fontSize:52,marginBottom:12}}>🎉</div>
-            <h2 style={{fontSize:20,fontWeight:800,color:"var(--tx)",marginBottom:6}}>Välkommen, Ghost Hunter!</h2>
-            <p style={{fontSize:13,color:"var(--tx2)"}}>Alla 308 platser är nu upplåsta. Laddar…</p>
-          </div>
-        )}
+            );
+          })}
+        </div>
+
+        {err&&<div style={{background:"rgba(248,113,113,0.12)",border:"1px solid rgba(248,113,113,0.35)",borderRadius:9,padding:"10px 13px",fontSize:12,color:"#f87171",marginTop:14}}>{err}</div>}
+        <div style={{textAlign:"center",fontSize:11,color:"var(--tx4)",marginTop:14}}>🔒 Säker betalning via Stripe · Ingen bindningstid</div>
       </div>
     </div>
   );
 }
 
 // ── PLACE POPUP (map) ─────────────────────────────────────────
-function PlacePopup({place,isPro,onRead,onClose,onAddRoadtrip,inRoadtrip}) {
-  const locked=!place.free&&!isPro;
+function PlacePopup({place,isPro,tier,onRead,onClose,onAddRoadtrip,inRoadtrip}) {
+  const locked=placeLocked(place, tier);
   return(
     <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
       <div className="modal-sheet au" style={{padding:0,overflow:"hidden"}}>
@@ -861,8 +942,108 @@ function PlacePopup({place,isPro,onRead,onClose,onAddRoadtrip,inRoadtrip}) {
 }
 
 // ── READER ────────────────────────────────────────────────────
-function Reader({place,allPlaces,isPro,onClose,onNavigate,upgrade,roadtrip,setRoadtrip,visited,setVisited,user,onShare}) {
-  const locked=!place.free&&!isPro;
+// ── PLATSRECENSION (knappval) ─────────────────────────────────
+const REVIEW_EXP = [
+  { code:"amazing", emoji:"🤩", label:"Fantastisk" },
+  { code:"good",    emoji:"😊", label:"Bra" },
+  { code:"ok",      emoji:"😐", label:"Okej" },
+  { code:"dull",    emoji:"😴", label:"Ingen behållning" },
+];
+const REVIEW_SPOOK = [
+  { n:1, label:"Helt lugnt" },
+  { n:2, label:"Lite pirrigt" },
+  { n:3, label:"Obehagligt" },
+  { n:4, label:"Skrämmande" },
+  { n:5, label:"Skräckupplevelse" },
+];
+const REVIEW_TAGS = [
+  { code:"cold",    emoji:"🥶", label:"Kalla fläckar" },
+  { code:"sounds",  emoji:"🔊", label:"Ljud / röster" },
+  { code:"shadows", emoji:"👤", label:"Skuggor / rörelser" },
+  { code:"objects", emoji:"🕯️", label:"Föremål rörde sig" },
+  { code:"touch",   emoji:"✋", label:"Beröring / knuffar" },
+  { code:"emf",     emoji:"📟", label:"Utrustningsutslag (EMF)" },
+  { code:"unease",  emoji:"😱", label:"Obehagskänsla" },
+  { code:"nothing", emoji:"🤍", label:"Inget övernaturligt" },
+];
+const expMeta = (c) => REVIEW_EXP.find(e=>e.code===c);
+
+function VisitReviewModal({ place, existing, onClose, onSaved }) {
+  const [exp,setExp]=useState(existing?.experience||"");
+  const [spook,setSpook]=useState(existing?.spook_level||0);
+  const [tags,setTags]=useState(existing?.tags||[]);
+  const [note,setNote]=useState(existing?.note||"");
+  const [loading,setLoading]=useState(false);
+  const [err,setErr]=useState("");
+  const toggleTag=(c)=>setTags(t=>t.includes(c)?t.filter(x=>x!==c):[...t,c]);
+
+  async function save(){
+    if(!exp){setErr("Välj hur du upplevde platsen.");return;}
+    if(!spook){setErr("Välj hur spökligt det kändes.");return;}
+    setLoading(true);setErr("");
+    try{
+      await upsertPlaceReview({ place_id:place.id, experience:exp, spook_level:spook, tags, note:note.trim() });
+      onSaved?.();
+    }catch(e){ setErr(e.message||"Kunde inte spara."); setLoading(false); }
+  }
+
+  const lbl={fontSize:12,fontWeight:700,color:"var(--tx2)",margin:"16px 0 8px",display:"block"};
+  const chip=(active)=>({background:active?"rgba(124,58,237,0.18)":"var(--bg3)",border:`1px solid ${active?"#7c3aed":"var(--b)"}`,borderRadius:11,padding:"10px 12px",cursor:"pointer",color:"var(--tx)",fontSize:13,fontWeight:500,display:"flex",alignItems:"center",gap:8,transition:"all 0.15s",textAlign:"left"});
+
+  return(
+    <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+      <div className="modal-sheet au" style={{maxHeight:"92vh",overflowY:"auto"}}>
+        <div className="modal-handle"/>
+        <button onClick={onClose} style={{position:"absolute",top:14,right:14,background:"none",border:"none",color:"var(--tx3)",cursor:"pointer",fontSize:22,padding:4}}>✕</button>
+        <div style={{textAlign:"center",marginBottom:6}}>
+          <div style={{fontSize:32}}>👻</div>
+          <h2 style={{fontSize:18,fontWeight:800,color:"var(--tx)",margin:"6px 0 2px"}}>Dela din upplevelse</h2>
+          <p style={{fontSize:12,color:"var(--tx3)"}}>{place.name}</p>
+        </div>
+
+        <label style={lbl}>Hur upplevde du platsen?</label>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+          {REVIEW_EXP.map(e=>(
+            <button key={e.code} onClick={()=>setExp(e.code)} style={chip(exp===e.code)}>
+              <span style={{fontSize:18}}>{e.emoji}</span>{e.label}
+            </button>
+          ))}
+        </div>
+
+        <label style={lbl}>Hur spökligt kändes det?</label>
+        <div style={{display:"flex",flexDirection:"column",gap:6}}>
+          {REVIEW_SPOOK.map(s=>(
+            <button key={s.n} onClick={()=>setSpook(s.n)} style={chip(spook===s.n)}>
+              <span style={{fontSize:14,letterSpacing:1}}>{"👻".repeat(s.n)}</span>
+              <span style={{color:"var(--tx3)",fontSize:12}}>{s.label}</span>
+            </button>
+          ))}
+        </div>
+
+        <label style={lbl}>Vad upplevde du? <span style={{fontWeight:400,color:"var(--tx4)"}}>(välj flera)</span></label>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+          {REVIEW_TAGS.map(tg=>(
+            <button key={tg.code} onClick={()=>toggleTag(tg.code)} style={chip(tags.includes(tg.code))}>
+              <span style={{fontSize:16}}>{tg.emoji}</span><span style={{fontSize:12}}>{tg.label}</span>
+            </button>
+          ))}
+        </div>
+
+        <label style={lbl}>Kommentar <span style={{fontWeight:400,color:"var(--tx4)"}}>(valfritt)</span></label>
+        <textarea className="inp" value={note} onChange={e=>setNote(e.target.value)} rows={2} maxLength={500} placeholder="Berätta kort om ditt besök…" style={{resize:"none",width:"100%"}}/>
+
+        {err&&<div style={{background:"rgba(248,113,113,0.12)",border:"1px solid rgba(248,113,113,0.35)",borderRadius:9,padding:"10px 13px",fontSize:13,color:"#f87171",marginTop:12}}>{err}</div>}
+        <button onClick={save} disabled={loading} className="btn btn-p btn-full" style={{marginTop:16}}>
+          {loading?<Spinner/>:(existing?"Uppdatera recension →":"Spara recension →")}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function Reader({place,allPlaces,isPro,onClose,onNavigate,upgrade,roadtrip,setRoadtrip,visited,setVisited,user,onShare,onAuth}) {
+  const tier=user?.tier||(isPro?"pro":"free");
+  const locked=placeLocked(place, tier);
   // Build gallery: prefer place.images array, fallback to single img
   const gallery = (Array.isArray(place.images) && place.images.length > 0)
     ? place.images
@@ -889,9 +1070,29 @@ function Reader({place,allPlaces,isPro,onClose,onNavigate,upgrade,roadtrip,setRo
 
   const isVisited=visited.includes(place.id);
 
+  // ── Platsrecensioner (knappval) ──
+  const [showReview,setShowReview]=useState(false);
+  const [myReview,setMyReview]=useState(null);
+  const [reviewStats,setReviewStats]=useState(null);
+  useEffect(()=>{
+    let on=true;
+    fetchPlaceReviewStats(place.id).then(s=>{if(on)setReviewStats(s);});
+    if(user) fetchMyPlaceReview(place.id).then(r=>{if(on)setMyReview(r);}); else setMyReview(null);
+    return ()=>{on=false;};
+  },[place.id,user]);
+  async function reloadReview(){
+    const [s,r]=await Promise.all([
+      fetchPlaceReviewStats(place.id),
+      user?fetchMyPlaceReview(place.id):Promise.resolve(null),
+    ]);
+    setReviewStats(s);setMyReview(r);
+  }
+  function openReview(){ if(!user){onAuth?.();return;} setShowReview(true); }
+
   return(
     <div style={{position:"fixed",inset:0,background:"var(--bg)",zIndex:800,display:"flex",flexDirection:"column",fontFamily:"'Poppins',sans-serif"}}>
       <style>{CSS}</style>
+      {showReview&&<VisitReviewModal place={place} existing={myReview} onClose={()=>setShowReview(false)} onSaved={async()=>{await reloadReview();if(!visited.includes(place.id))setVisited(v=>[...v,place.id]);setShowReview(false);}}/>}
 
       {/* ── Top bar ── */}
       <div style={{background:"rgba(7,6,15,0.97)",backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",borderBottom:"1px solid var(--b)",padding:"10px 14px",display:"flex",alignItems:"center",gap:8,flexShrink:0,zIndex:10}}>
@@ -961,6 +1162,18 @@ function Reader({place,allPlaces,isPro,onClose,onNavigate,upgrade,roadtrip,setRo
               {place.region&&<span style={{fontSize:11,color:"var(--tx3)"}}>{place.region}</span>}
               {isVisited&&<Tag ch="✓ Besökt" c="#34d399"/>}
             </div>
+
+            {/* Besökarnas upplevelser (aggregat) */}
+            {reviewStats?.review_count>0&&(
+              <div style={{background:"var(--bg3)",border:"1px solid var(--b)",borderRadius:12,padding:"11px 14px",marginBottom:18,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+                <span style={{fontSize:16}}>{"👻".repeat(Math.max(1,Math.round(reviewStats.avg_spook||0)))}</span>
+                <span style={{fontSize:13,fontWeight:700,color:"var(--tx)"}}>{Number(reviewStats.avg_spook).toFixed(1)}/5</span>
+                <span style={{fontSize:12,color:"var(--tx3)"}}>spöklighet · {reviewStats.review_count} {reviewStats.review_count===1?"besökare":"besökare"}</span>
+                {reviewStats.top_experience&&expMeta(reviewStats.top_experience)&&(
+                  <Tag ch={`${expMeta(reviewStats.top_experience).emoji} ${expMeta(reviewStats.top_experience).label}`} c="#a78bfa"/>
+                )}
+              </div>
+            )}
 
             {/* ── LOCKED ── */}
             {locked?(
@@ -1039,6 +1252,12 @@ function Reader({place,allPlaces,isPro,onClose,onNavigate,upgrade,roadtrip,setRo
                   </button>
                 </div>
 
+                {/* Dela din upplevelse (recension) */}
+                <button onClick={openReview} style={{width:"100%",background:myReview?"rgba(124,58,237,0.1)":"var(--bg3)",border:`1px solid ${myReview?"#7c3aed":"var(--b)"}`,borderRadius:11,padding:"13px",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:14,color:"var(--tx)",fontSize:13,fontWeight:600}}>
+                  <span style={{fontSize:18}}>⭐</span>
+                  {myReview?"Uppdatera din upplevelse":"Dela din upplevelse"}
+                </button>
+
                 {/* Booking */}
                 {place.bookable&&place.bookingUrl&&(
                   <a href={place.bookingUrl} target="_blank" rel="noreferrer" style={{display:"block",textAlign:"center",background:"rgba(52,211,153,0.07)",border:"1px solid rgba(52,211,153,0.22)",borderRadius:11,padding:"13px",fontSize:13,fontWeight:600,color:"#34d399",marginBottom:20}}>
@@ -1073,7 +1292,7 @@ function Reader({place,allPlaces,isPro,onClose,onNavigate,upgrade,roadtrip,setRo
                       {place.type==="Hotell"||place.type==="Herrgård"?"🏰 Fler hemsökta boenden":"👻 Liknande platser som kan intressera dig"}
                     </div>
                     {related.map(p=>{
-                      const lk=!p.free&&!isPro;
+                      const lk=placeLocked(p, tier);
                       return(
                         <div key={p.id} onClick={()=>onNavigate(p)} style={{display:"flex",gap:10,alignItems:"center",padding:"10px 12px",background:"var(--card)",border:"1px solid var(--b)",borderRadius:11,marginBottom:7,cursor:"pointer",transition:"border-color 0.15s"}} onTouchStart={e=>e.currentTarget.style.borderColor="var(--acc)"} onTouchEnd={e=>e.currentTarget.style.borderColor="var(--b)"}>
                           <div style={{width:40,height:40,borderRadius:8,background:"var(--bg3)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden"}}>
@@ -1457,7 +1676,6 @@ function BulletinBoard({user}) {
 function HuntersPage({user,setAuth,setView}) {
   const [search,setSearch]=useState("");
   const [openProfile,setOpenProfile]=useState(null);
-  const [showUpgrade,setShowUpgrade]=useState(false);
 
   // Slå ihop bas-datat med ev. registrerade spökjägare i USERS_DB
   const all = [
@@ -1509,7 +1727,6 @@ function HuntersPage({user,setAuth,setView}) {
           {isHunter && <div style={{background:"rgba(52,211,153,0.07)",border:"1px solid rgba(52,211,153,0.2)",borderRadius:10,padding:"9px 12px",fontSize:12,color:"#34d399",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap"}}>
             <span>✓ Du är verifierad spökjägare</span>
             <div style={{display:"flex",gap:6}}>
-              <button onClick={()=>setShowUpgrade(true)} style={{background:"rgba(124,58,237,0.18)",border:"1px solid #7c3aed",borderRadius:7,padding:"4px 10px",fontSize:11,fontWeight:600,color:"#a78bfa",cursor:"pointer"}}>✨ Uppgradera</button>
               <button onClick={()=>setView("board")} style={{background:"none",border:"1px solid rgba(52,211,153,0.35)",borderRadius:7,padding:"4px 10px",fontSize:11,fontWeight:600,color:"#34d399",cursor:"pointer"}}>Anslagstavla →</button>
             </div>
           </div>}
@@ -1567,40 +1784,14 @@ function HuntersPage({user,setAuth,setView}) {
           <div style={{fontSize:32,marginBottom:8}}>🔍</div>
           <div style={{fontSize:16,fontWeight:800,color:"var(--tx)",marginBottom:6}}>Är du spökjägare?</div>
           <p style={{fontSize:12,color:"var(--tx2)",lineHeight:1.65,marginBottom:14}}>
-            Skapa en profil — beskriv dig själv, ladda upp bilder, logga platser du varit på, markera bästa platsen och länka YouTube/IG/pod. Gratis att komma igång. Uppgradera till Premium (79 kr/mån) för att featuras emellanåt.
+            Skapa en profil — beskriv dig själv, ladda upp bilder, logga platser du varit på, markera bästa platsen och länka YouTube/IG/pod. Helt gratis.
           </p>
-          <Btn ch="Ansök om spökjägar-profil →" v="p" onClick={()=>user?setShowUpgrade(true):setAuth("register")}/>
-        </div>
-      </div>
-
-      {/* Premium-tiers info */}
-      <div style={{padding:"18px 14px 4px"}}>
-        <div style={{fontSize:11,fontWeight:700,color:"var(--tx3)",letterSpacing:1.5,textTransform:"uppercase",marginBottom:9}}>✨ Synas mer som spökjägare</div>
-        <div style={{display:"grid",gap:9}}>
-          {Object.entries(HUNTER_TIERS).filter(([k])=>k!=="free").map(([code,t])=>(
-            <div key={code} style={{background:"var(--card)",border:`1px solid ${t.color}55`,borderTop:`3px solid ${t.color}`,borderRadius:11,padding:"12px 14px"}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:5}}>
-                <div>
-                  <div style={{fontSize:13,fontWeight:800,color:t.color}}>{t.label}</div>
-                  <div style={{fontSize:11,color:"var(--tx3)",marginTop:1,lineHeight:1.45}}>{t.pitch}</div>
-                </div>
-                <div style={{textAlign:"right",flexShrink:0}}>
-                  <div style={{fontSize:18,fontWeight:800,color:t.color}}>{t.price.toLocaleString("sv-SE")} kr</div>
-                  {t.period && <div style={{fontSize:9,color:"var(--tx4)"}}>{t.period}</div>}
-                </div>
-              </div>
-              <ul style={{listStyle:"none",padding:0,margin:"4px 0 8px",display:"grid",gap:3}}>
-                {t.perks.map((perk,i)=>(<li key={i} style={{fontSize:11,color:"var(--tx2)",display:"flex",gap:6}}><span style={{color:t.color}}>✓</span> {perk}</li>))}
-              </ul>
-              <Btn ch={code==="article"?"Beställ artikel →":`Uppgradera till ${t.label} →`} v="ghost" sz="sm" onClick={()=>user?setShowUpgrade(true):setAuth("login")}/>
-            </div>
-          ))}
+          <Btn ch="Ansök om spökjägar-profil →" v="p" onClick={()=>{ if(!user) setAuth("register"); }}/>
         </div>
       </div>
 
       {/* MODALER */}
-      {openProfile && <HunterDetailModal h={openProfile} user={user} onClose={()=>setOpenProfile(null)} onUpgrade={()=>{setOpenProfile(null);setShowUpgrade(true);}}/>}
-      {showUpgrade && <HunterUpgradeModal user={user} onClose={()=>setShowUpgrade(false)}/>}
+      {openProfile && <HunterDetailModal h={openProfile} user={user} onClose={()=>setOpenProfile(null)}/>}
     </div>
   );
 }
@@ -1748,12 +1939,10 @@ function HunterDetailModal({ h, user, onClose, onUpgrade }) {
             )}
           </div>
 
-          {/* ÄR DETTA DU? — uppgradera */}
           {user && user.id === h.id && (
             <div style={{padding:"11px 13px",background:"rgba(124,58,237,0.08)",border:"1px solid rgba(124,58,237,0.3)",borderRadius:10}}>
               <div style={{fontSize:11,fontWeight:700,color:"#a78bfa",marginBottom:4}}>Det här är din profil</div>
-              <div style={{fontSize:11,color:"var(--tx3)",marginBottom:8,lineHeight:1.5}}>Vill du synas mer? Uppgradera till Premium (79 kr/mån) för att featuras emellanåt eller Spotlight (129 kr/mån) för permanent topp-placering.</div>
-              <Btn ch="✨ Se uppgraderingar" v="p" sz="sm" onClick={onUpgrade}/>
+              <div style={{fontSize:11,color:"var(--tx3)",lineHeight:1.5}}>Uppdatera din bio, bilder och besökta platser när du vill.</div>
             </div>
           )}
         </div>
@@ -1762,91 +1951,7 @@ function HunterDetailModal({ h, user, onClose, onUpgrade }) {
   );
 }
 
-// ── UPPGRADERA SPÖKJÄGAR-PROFIL (modal) ───────────────────────
-function HunterUpgradeModal({ user, onClose }) {
-  const [selected, setSelected] = useState("premium");
-  const [loading, setLoading] = useState(false);
-  const [done, setDone] = useState(false);
-  const [err, setErr] = useState("");
-
-  async function order() {
-    if (!user) { setErr("Logga in först"); return; }
-    setLoading(true); setErr("");
-    try {
-      const t = HUNTER_TIERS[selected];
-      // I produktion: call createHunterOrder + redirect till Stripe Checkout
-      // Här simulerar vi en pending order (kräver inloggning)
-      try {
-        await createHunterOrder({
-          product: selected==="premium"?"premium_79":selected==="spotlight"?"spotlight_129":"article_1299",
-          amount: t.price,
-          notes: ""
-        });
-      } catch(_) { /* funkar inte utan Supabase-uppkoppling, men funkar lokalt */ }
-      setDone(true);
-    } catch(e) { setErr("Något gick fel: " + e.message); }
-    finally { setLoading(false); }
-  }
-
-  if (done) return (
-    <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
-      <div className="modal-sheet au" style={{textAlign:"center",padding:"32px 22px"}}>
-        <div style={{fontSize:48,marginBottom:12}}>📨</div>
-        <h2 style={{fontSize:18,fontWeight:800,color:"var(--tx)",marginBottom:8}}>Tack — beställning mottagen!</h2>
-        <p style={{fontSize:13,color:"var(--tx2)",lineHeight:1.65,marginBottom:18}}>
-          Fredrik kontaktar dig inom 24 timmar med betalningslänk för <strong style={{color:HUNTER_TIERS[selected].color}}>{HUNTER_TIERS[selected].label}</strong>.
-          {selected === "article" && " För artikeln bokar vi in en intervju (ca 30 min)."}
-        </p>
-        <Btn ch="Stäng" v="p" full onClick={onClose}/>
-      </div>
-    </div>
-  );
-
-  return (
-    <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
-      <div className="modal-sheet au" style={{maxHeight:"94vh",overflowY:"auto"}}>
-        <div className="modal-handle"/>
-        <button onClick={onClose} style={{position:"absolute",top:14,right:14,background:"none",border:"none",color:"var(--tx3)",cursor:"pointer",fontSize:22,padding:4}}>✕</button>
-        <h2 style={{fontSize:20,fontWeight:800,color:"var(--tx)",marginBottom:6}}>✨ Synas mer som spökjägare</h2>
-        <p style={{fontSize:12,color:"var(--tx3)",marginBottom:16,lineHeight:1.55}}>
-          Vill du marknadsföra din pod, kanal eller dig själv på Spökkartan? Välj nivå nedan.
-        </p>
-
-        <div style={{display:"grid",gap:11,marginBottom:14}}>
-          {Object.entries(HUNTER_TIERS).filter(([k])=>k!=="free").map(([code,t])=>{
-            const sel = selected===code;
-            return (
-              <button key={code} onClick={()=>setSelected(code)} style={{background:sel?`${t.color}1a`:"var(--bg3)",border:`2px solid ${sel?t.color:"var(--b)"}`,borderRadius:12,padding:"14px",cursor:"pointer",textAlign:"left",position:"relative"}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,marginBottom:6}}>
-                  <div>
-                    <div style={{fontSize:14,fontWeight:800,color:sel?t.color:"var(--tx)"}}>{t.label}</div>
-                    <div style={{fontSize:11,color:"var(--tx3)",marginTop:1}}>{t.pitch}</div>
-                  </div>
-                  <div style={{textAlign:"right",flexShrink:0}}>
-                    <div style={{fontSize:18,fontWeight:800,color:sel?t.color:"var(--tx)"}}>{t.price.toLocaleString("sv-SE")} kr</div>
-                    {t.period && <div style={{fontSize:9,color:"var(--tx4)"}}>{t.period}</div>}
-                  </div>
-                </div>
-                <ul style={{listStyle:"none",padding:0,margin:0,display:"grid",gap:3}}>
-                  {t.perks.map((perk,i)=>(<li key={i} style={{fontSize:11,color:"var(--tx2)",display:"flex",gap:6}}><span style={{color:t.color}}>✓</span> {perk}</li>))}
-                </ul>
-                {sel && <span style={{position:"absolute",top:12,right:12,color:t.color,fontSize:18,fontWeight:800}}>✓</span>}
-              </button>
-            );
-          })}
-        </div>
-
-        <div style={{fontSize:11,color:"var(--tx3)",marginBottom:12,padding:"9px 11px",background:"rgba(96,165,250,0.07)",border:"1px solid rgba(96,165,250,0.2)",borderRadius:9,lineHeight:1.55}}>
-          ℹ️ Du beställer nu — Fredrik skickar betalningslänk inom 24h. Avbryt när du vill.
-        </div>
-
-        {err && <div style={{background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.3)",borderRadius:8,padding:"8px 12px",fontSize:12,color:"#ef4444",marginBottom:10}}>{err}</div>}
-
-        <Btn ch={loading?"Skickar…":`Beställ ${HUNTER_TIERS[selected].label} →`} v="p" full onClick={order} disabled={loading}/>
-      </div>
-    </div>
-  );
-}
+// (Hunter-uppgraderingsmodalen borttagen — hunter-funktionen är pausad.)
 
 
 // ── SIMULATED SCRAPER DATA ────────────────────────────────────
@@ -2512,20 +2617,9 @@ const TIER_CONFIG = {
              perks: ["Allt i Pro","Förstasidesvisning emellanåt","Featured-band runt kortet","Cross-promo i nyhetsbrev (10k+)","En sponsrad blogg per kvartal","Snabbsupport av Fredrik"] },
 };
 
-// Tiers för SPÖKJÄGARE (privatpersoner som syns på spökjägarsidan)
+// Kvar enbart som stil-fallback för hunter-kort (betaltiers borttagna).
 const HUNTER_TIERS = {
-  free:      { label: "Gratis",       color: "#6b7280", price: 0,    period: "",
-               pitch: "Skapa profil och visa upp dig — kostar inget.",
-               perks: ["Profil med bio & bilder","Lista platser du varit på","Länka YouTube/IG/pod","Synlig i spökjägarlistan"] },
-  premium:   { label: "Premium",      color: "#a78bfa", price: 79,   period: "/mån",
-               pitch: "Featured emellanåt på första sidan + extra synlighet.",
-               perks: ["Allt i Gratis","Featured på spökjägar-startsidan emellanåt","Premium-badge","Egen banner & galleri","Push när vi lyfter dig"] },
-  spotlight: { label: "Spotlight",    color: "#fbbf24", price: 129,  period: "/mån",
-               pitch: "Permanent topp-placering + cross-promo i sociala medier.",
-               perks: ["Allt i Premium","Topp-placering hela månaden","Annons i nyhetsbrevet","Cross-promo i Spökkartans IG/Facebook","Direktkontakt med Fredrik"] },
-  article:   { label: "Egen artikel", color: "#f472b6", price: 1299, period: " engångskostnad",
-               pitch: "Skräddarsydd artikel skriven om dig + permanent länk.",
-               perks: ["Personlig intervju (30 min)","Artikel ~800–1200 ord skriven av redaktionen","Publiceras under 'Möt spökjägaren'","Permanent featured-länk på din profil","Delas i nyhetsbrev + sociala kanaler"] },
+  free: { label: "", color: "#34d399", price: 0, period: "", pitch: "", perks: [] },
 };
 
 // ── PARTNERS-VYN ──────────────────────────────────────────────
@@ -3160,7 +3254,7 @@ function LanguagePicker({ lang, setLang, langs, t }) {
 }
 
 // ── STORIES-VY (med tema-filter + bokningsbart-toggle) ───────
-function StoriesView({ places, isPro, onRead }) {
+function StoriesView({ places, isPro, tier, onRead }) {
   const [typeFilter, setTypeFilter] = useState("all");
   const [bookableOnly, setBookableOnly] = useState(false);
   const [search, setSearch] = useState("");
@@ -3234,7 +3328,7 @@ function StoriesView({ places, isPro, onRead }) {
         </div>
       ) : (
         <div className="stories-grid" style={{paddingBottom:80}}>
-          {filtered.map(p => <PlaceCard key={p.id} p={p} isPro={isPro} onClick={()=>onRead(p)}/>)}
+          {filtered.map(p => <PlaceCard key={p.id} p={p} isPro={isPro} tier={tier} onClick={()=>onRead(p)}/>)}
         </div>
       )}
     </div>
@@ -3242,8 +3336,8 @@ function StoriesView({ places, isPro, onRead }) {
 }
 
 // ── PLATSKORT (delad mellan stories-vy m.fl.) ────────────────
-function PlaceCard({ p, isPro, onClick }) {
-  const locked = !p.free && !isPro;
+function PlaceCard({ p, isPro, tier, onClick }) {
+  const locked = placeLocked(p, tier);
   const themeIcon = TYPE_ICON[p.type] || "📍";
   return (
     <div className="place-card" onClick={onClick}>
@@ -3524,14 +3618,19 @@ export default function App() {
     return () => { mounted = false; unsubscribe(); };
   }, []);
 
-  // ── Hantera ?welcome=pro return från Stripe ───────────────
+  // ── Hantera ?welcome=pro return från Stripe + ?ref= (referral) ──
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    // Referral: spara vännens kod så den kan skickas med vid registrering.
+    const ref = params.get('ref');
+    if (ref) { try { localStorage.setItem('spok_ref', ref.trim()); } catch (e) {} }
     if (params.get('welcome') === 'pro') {
       setIsPro(true);
       // Optional: show a thank-you toast/modal here
       console.log('[Spokkartan] Välkommen som PRO!');
-      // Clean URL
+    }
+    // Städa URL:en om vi konsumerade en param
+    if (ref || params.get('welcome')) {
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, []);
@@ -3550,6 +3649,7 @@ export default function App() {
         avatar: profile?.avatar_url || session.user.user_metadata?.avatar_url || '',
         role: profile?.role || 'user',
         pro: profile?.is_pro || false,
+        tier: (profile?.tier && profile.tier !== 'free') ? profile.tier : (profile?.is_pro ? 'pro' : 'free'),
         bio: profile?.bio || '',
         verified: false,
       };
@@ -3671,8 +3771,9 @@ export default function App() {
         setVisited={setVisited}
         user={user}
         onShare={(title,url)=>setShareData({title,url})}
+        onAuth={()=>{setReading(null);setAuth("login");}}
       />
-      {showPro&&<ProModal onClose={()=>setShowPro(false)} onSuccess={()=>setIsPro(true)} isPro={isPro}/>}
+      {showPro&&<ProModal onClose={()=>setShowPro(false)} onSuccess={()=>setIsPro(true)} isPro={isPro} currentTier={user?.tier||(isPro?"pro":"free")}/>}
     </>);
   }
 
@@ -3705,9 +3806,9 @@ export default function App() {
             <button onClick={()=>setShowNotif(true)} style={{background:notifPrefs.enabled?"rgba(124,58,237,0.15)":"var(--bg3)",border:`1px solid ${notifPrefs.enabled?"var(--acc)":"var(--b)"}`,borderRadius:9,padding:"6px 9px",cursor:"pointer",fontSize:14,position:"relative"}}>
               🔔{notifPrefs.enabled&&<span style={{position:"absolute",top:3,right:3,width:6,height:6,borderRadius:"50%",background:"var(--acc)",border:"1px solid var(--bg)"}}/>}
             </button>
-            {isPro&&<Tag ch="PRO ✓" c="var(--acc)"/>}
-            {!isPro&&<Btn ch="PRO" v="p" sz="sm" onClick={upgrade}/>}
-            {isPro&&<button onClick={()=>setShowCancel(true)} style={{background:"none",border:"none",fontSize:10,color:"var(--tx4)",cursor:"pointer",padding:"4px"}}>Avsluta PRO</button>}
+            {isPro&&<Tag ch={`${(user&&TIERS[user.tier]&&TIERS[user.tier].label)||"PRO"} ✓`} c="var(--acc)"/>}
+            {!isPro&&<Btn ch="Uppgradera" v="p" sz="sm" onClick={upgrade}/>}
+            {isPro&&<button onClick={()=>setShowCancel(true)} style={{background:"none",border:"none",fontSize:10,color:"var(--tx4)",cursor:"pointer",padding:"4px"}}>Avsluta</button>}
             <button onClick={async()=>{await supabaseSignOut().catch(()=>{});setUser(null);setIsPro(false);setView("home");}} style={{background:"var(--bg3)",border:"1px solid var(--b)",borderRadius:20,padding:"5px 10px",fontSize:11,fontWeight:500,color:"var(--tx3)",cursor:"pointer"}}>{user.name?.split(" ")[0]} ✕</button>
           </div>
         ):(
@@ -3784,7 +3885,7 @@ export default function App() {
 
         {/* STORIES */}
         {view==="stories"&&(
-          <StoriesView places={allPlacesMut} isPro={isPro} onRead={setReading}/>
+          <StoriesView places={allPlacesMut} isPro={isPro} tier={user?.tier||(isPro?"pro":"free")} onRead={setReading}/>
         )}
 
         {/* EBOOK */}
@@ -3874,7 +3975,7 @@ export default function App() {
       </div>
 
       {/* MAP PLACE POPUP */}
-      {mapSel&&<PlacePopup place={mapSel} isPro={isPro} onRead={p=>{setMapSel(null);setReading(p);}} onClose={()=>setMapSel(null)} onAddRoadtrip={id=>setRoadtrip(r=>r.includes(id)?r.filter(x=>x!==id):[...r,id])} inRoadtrip={roadtrip.includes(mapSel?.id)}/>}
+      {mapSel&&<PlacePopup place={mapSel} isPro={isPro} tier={user?.tier||(isPro?"pro":"free")} onRead={p=>{setMapSel(null);setReading(p);}} onClose={()=>setMapSel(null)} onAddRoadtrip={id=>setRoadtrip(r=>r.includes(id)?r.filter(x=>x!==id):[...r,id])} inRoadtrip={roadtrip.includes(mapSel?.id)}/>}
 
       {/* NOTIFICATION MODAL */}
       {showNotif&&<NotificationModal user={user} prefs={notifPrefs} setPrefs={setNotifPrefs} onClose={()=>setShowNotif(false)}/>}
@@ -3885,7 +3986,7 @@ export default function App() {
       {auth&&<AuthModal initMode={auth} onClose={()=>setAuth(null)} onSuccess={u=>{setUser(u);setIsPro(u.pro||false);setAuth(null);if(u.role==="admin")setView("admin");}}/>}
 
       {/* PRO MODAL */}
-      {showPro&&<ProModal onClose={()=>setShowPro(false)} onSuccess={()=>setIsPro(true)} isPro={isPro}/>}
+      {showPro&&<ProModal onClose={()=>setShowPro(false)} onSuccess={()=>setIsPro(true)} isPro={isPro} currentTier={user?.tier||(isPro?"pro":"free")}/>}
       {showBecomePartner&&<BecomePartnerModal user={user} onClose={()=>setShowBecomePartner(false)} onSuccess={()=>{setShowBecomePartner(false); alert("✅ Tack! Din ansökan är inskickad. Vi godkänner inom 24h och skickar bokstavligen e-post.");}}/>}
 
       {/* SHARE MODAL */}
