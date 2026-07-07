@@ -837,6 +837,14 @@ function placeMinTier(place){
 function placeLocked(place, tier){
   return TIER_RANK[tier||"free"] < TIER_RANK[placeMinTier(place)];
 }
+// Effektiv nivå för gating. VIKTIGT: 'free' är en truthy sträng, så
+// `user?.tier || (isPro?...)` blev fel — en betalande vars tier ännu inte
+// synkats (t.ex. direkt efter Stripe) fastnade som 'free' trots isPro=true.
+// Här får isPro alltid minst 'pro'-åtkomst.
+function effectiveTier(user, isPro){
+  if (user?.tier && user.tier !== "free") return user.tier;
+  return isPro ? "pro" : "free";
+}
 // Stripe Payment Links per nivå. Pro (19 kr) = befintlig länk. Explorer (9) och
 // Ultimate (49) sätts via env (VITE_STRIPE_EXPLORER / VITE_STRIPE_ULTIMATE) i Vercel.
 const STRIPE_LINKS = {
@@ -1066,7 +1074,7 @@ function VisitReviewModal({ place, existing, onClose, onSaved }) {
 }
 
 function Reader({place,allPlaces,isPro,onClose,onNavigate,upgrade,roadtrip,setRoadtrip,visited,setVisited,user,onShare,onAuth}) {
-  const tier=user?.tier||(isPro?"pro":"free");
+  const tier=effectiveTier(user,isPro);
   const locked=placeLocked(place, tier);
   // Build gallery: prefer place.images array, fallback to single img
   const gallery = (Array.isArray(place.images) && place.images.length > 0)
@@ -3708,8 +3716,22 @@ export default function App() {
     if (ref) { try { localStorage.setItem('spok_ref', ref.trim()); } catch (e) {} }
     if (params.get('welcome') === 'pro') {
       setIsPro(true);
-      // Optional: show a thank-you toast/modal here
-      console.log('[Spokkartan] Välkommen som PRO!');
+      // Ladda om profilen så rätt tier (t.ex. ultimate) speglas direkt efter
+      // betalning. Stripe-webhooken kan dröja någon sekund → försök två gånger.
+      const refreshTier = async () => {
+        try {
+          const session = await getSession();
+          if (!session?.user) return;
+          const profile = await getProfile(session.user.id);
+          if (profile) {
+            const t = (profile.tier && profile.tier !== 'free') ? profile.tier : 'pro';
+            setUser(u => u ? { ...u, tier: t, pro: true } : u);
+            setIsPro(true);
+          }
+        } catch (e) { /* tyst */ }
+      };
+      refreshTier();
+      setTimeout(refreshTier, 4000);
     }
     // Städa URL:en om vi konsumerade en param
     if (ref || params.get('welcome')) {
@@ -3855,7 +3877,7 @@ export default function App() {
         onShare={(title,url)=>setShareData({title,url})}
         onAuth={()=>{setReading(null);setAuth("login");}}
       />
-      {showPro&&<ProModal onClose={()=>setShowPro(false)} onSuccess={()=>setIsPro(true)} isPro={isPro} currentTier={user?.tier||(isPro?"pro":"free")}/>}
+      {showPro&&<ProModal onClose={()=>setShowPro(false)} onSuccess={()=>setIsPro(true)} isPro={isPro} currentTier={effectiveTier(user,isPro)}/>}
     </>);
   }
 
@@ -3967,7 +3989,7 @@ export default function App() {
 
         {/* STORIES */}
         {view==="stories"&&(
-          <StoriesView places={allPlacesMut} isPro={isPro} tier={user?.tier||(isPro?"pro":"free")} onRead={setReading}/>
+          <StoriesView places={allPlacesMut} isPro={isPro} tier={effectiveTier(user,isPro)} onRead={setReading}/>
         )}
 
         {/* EBOOK */}
@@ -4057,7 +4079,7 @@ export default function App() {
       </div>
 
       {/* MAP PLACE POPUP */}
-      {mapSel&&<PlacePopup place={mapSel} isPro={isPro} tier={user?.tier||(isPro?"pro":"free")} onRead={p=>{setMapSel(null);setReading(p);}} onClose={()=>setMapSel(null)} onAddRoadtrip={id=>setRoadtrip(r=>r.includes(id)?r.filter(x=>x!==id):[...r,id])} inRoadtrip={roadtrip.includes(mapSel?.id)}/>}
+      {mapSel&&<PlacePopup place={mapSel} isPro={isPro} tier={effectiveTier(user,isPro)} onRead={p=>{setMapSel(null);setReading(p);}} onClose={()=>setMapSel(null)} onAddRoadtrip={id=>setRoadtrip(r=>r.includes(id)?r.filter(x=>x!==id):[...r,id])} inRoadtrip={roadtrip.includes(mapSel?.id)}/>}
 
       {/* NOTIFICATION MODAL */}
       {showNotif&&<NotificationModal user={user} prefs={notifPrefs} setPrefs={setNotifPrefs} onClose={()=>setShowNotif(false)}/>}
@@ -4068,7 +4090,7 @@ export default function App() {
       {auth&&<AuthModal initMode={auth} onClose={()=>setAuth(null)} onSuccess={u=>{setUser(u);setIsPro(u.pro||false);setAuth(null);if(u.role==="admin")setView("admin");}}/>}
 
       {/* PRO MODAL */}
-      {showPro&&<ProModal onClose={()=>setShowPro(false)} onSuccess={()=>setIsPro(true)} isPro={isPro} currentTier={user?.tier||(isPro?"pro":"free")}/>}
+      {showPro&&<ProModal onClose={()=>setShowPro(false)} onSuccess={()=>setIsPro(true)} isPro={isPro} currentTier={effectiveTier(user,isPro)}/>}
       {showBecomePartner&&<BecomePartnerModal user={user} onClose={()=>setShowBecomePartner(false)} onSuccess={()=>{setShowBecomePartner(false); alert("✅ Tack! Din ansökan är inskickad. Vi godkänner inom 24h och skickar bokstavligen e-post.");}}/>}
 
       {/* SHARE MODAL */}
