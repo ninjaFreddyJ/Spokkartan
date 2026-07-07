@@ -1,7 +1,7 @@
 
 // SPÖKKARTAN v7 — Mobile-first, working auth, clean navigation
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { fetchPlaces, subscribeToPlaces, signInWithGoogle, signInWithEmail, signUpWithEmail, resetPasswordForEmail, signOut as supabaseSignOut, getProfile, onAuthChange, getSession, fetchPartners, createPartner, fetchPartnerPackages, submitPartnerQuestion, fetchPartnerQuestions, updatePartnerQuestion, fetchHunters, fetchHunterVisits, updateHunterProfile, upsertHunterVisit, submitPlaceSuggestion, fetchPlaceSuggestions, updatePlaceSuggestion, deletePlaceSuggestion, savePushSubscription, removePushSubscription, upsertPlaceReview, fetchMyPlaceReview, fetchPlaceReviewStats, fetchProMembers } from "./supabase";
+import { fetchPlaces, subscribeToPlaces, signInWithGoogle, signInWithEmail, signUpWithEmail, resetPasswordForEmail, signOut as supabaseSignOut, getProfile, onAuthChange, getSession, fetchPartners, createPartner, fetchPartnerPackages, submitPartnerQuestion, fetchPartnerQuestions, updatePartnerQuestion, fetchHunters, fetchHunterVisits, updateHunterProfile, upsertHunterVisit, submitPlaceSuggestion, fetchPlaceSuggestions, updatePlaceSuggestion, deletePlaceSuggestion, savePushSubscription, removePushSubscription, upsertPlaceReview, fetchMyPlaceReview, fetchPlaceReviewStats, fetchProMembers, redeemCode } from "./supabase";
 
 // Web-push: publik VAPID-nyckel (publik = ofarlig att baka in). Sätt
 // VITE_VAPID_PUBLIC_KEY i Vercel för att rotera. Privata nyckeln ligger ENDAST
@@ -849,12 +849,26 @@ function ProModal({onClose,onSuccess,isPro,currentTier}) {
   const cur = currentTier || (isPro?"pro":"free");
   const [loading,setLoading]=useState("");
   const [err,setErr]=useState("");
+  const [promoCode,setPromoCode]=useState("");
+  const [redeeming,setRedeeming]=useState(false);
+  const [redeemMsg,setRedeemMsg]=useState(null);
 
   function choose(code){
     const link=STRIPE_LINKS[code];
     if(!link){ setErr(`Betallänk för ${TIERS[code].label} är inte inlagd ännu. Hör av dig så aktiverar vi den.`); return; }
     setLoading(code); setErr("");
     setTimeout(()=>{ window.location.href=link; }, 150);
+  }
+
+  async function doRedeem(){
+    if(!promoCode.trim())return;
+    setRedeeming(true); setRedeemMsg(null);
+    try{
+      const r=await redeemCode(promoCode);
+      if(r&&r.ok){ setRedeemMsg({ok:true,text:`✅ ${r.days} dagar PRO tillagt! Laddar…`}); onSuccess&&onSuccess(); setTimeout(()=>onClose&&onClose(),1400); }
+      else setRedeemMsg({ok:false,text:(r&&r.error)||"Kunde inte lösa in koden."});
+    }catch(e){ setRedeemMsg({ok:false,text:e.message||"Något gick fel."}); }
+    finally{ setRedeeming(false); }
   }
 
   const paid=["explorer","pro","ultimate"];
@@ -905,6 +919,16 @@ function ProModal({onClose,onSuccess,isPro,currentTier}) {
         </div>
 
         {err&&<div style={{background:"rgba(248,113,113,0.12)",border:"1px solid rgba(248,113,113,0.35)",borderRadius:9,padding:"10px 13px",fontSize:12,color:"#f87171",marginTop:14}}>{err}</div>}
+        {/* Kampanjkod */}
+        <div style={{marginTop:16,paddingTop:14,borderTop:"1px solid var(--b)"}}>
+          <div style={{fontSize:11,fontWeight:700,color:"var(--tx3)",marginBottom:6}}>🎟️ Har du en kampanjkod?</div>
+          <div style={{display:"flex",gap:8}}>
+            <input className="inp" value={promoCode} onChange={e=>setPromoCode(e.target.value)} placeholder="Ange kod" style={{flex:1}} onKeyDown={e=>{if(e.key==="Enter")doRedeem();}}/>
+            <button onClick={doRedeem} disabled={redeeming||!promoCode.trim()} style={{background:"var(--bg3)",border:"1px solid var(--b)",borderRadius:11,padding:"0 16px",fontSize:13,fontWeight:600,color:"var(--tx)",cursor:"pointer",whiteSpace:"nowrap"}}>{redeeming?<Spinner/>:"Lös in"}</button>
+          </div>
+          {redeemMsg&&<div style={{marginTop:8,fontSize:12,color:redeemMsg.ok?"#34d399":"#f87171"}}>{redeemMsg.text}</div>}
+        </div>
+
         <div style={{textAlign:"center",fontSize:11,color:"var(--tx4)",marginTop:14}}>🔒 Säker betalning via Stripe · Ingen bindningstid</div>
       </div>
     </div>
@@ -2006,7 +2030,7 @@ function AdminDash({allPlaces,setAllPlaces,user,onLogout}) {
   const [memKind,setMemKind]=useState("paid"); // "paid" | "trial"
   async function loadMembers(){ setMemLoading(true); try{ setMembers(await fetchProMembers()); }catch(e){ console.error(e); } setMemLoading(false); }
   useEffect(()=>{ loadMembers(); },[]);
-  const isTrialMember=(m)=>m.trial_source==="referral";
+  const isTrialMember=(m)=>m.trial_source==="referral"||m.trial_source==="code";
   const paidMembers=members.filter(m=>!isTrialMember(m));
   const trialMembers=members.filter(isTrialMember);
 

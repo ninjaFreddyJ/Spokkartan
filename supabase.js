@@ -344,6 +344,13 @@ export async function createHunterOrder({ product, amount, notes }) {
   return data;
 }
 
+// ── KAMPANJKODER (t.ex. SpokkartanOldCrew → månad gratis) ─────
+export async function redeemCode(code) {
+  const { data, error } = await supabase.rpc('redeem_code', { p_code: (code || '').trim() });
+  if (error) throw error;
+  return data; // { ok:true, days } | { ok:false, error }
+}
+
 // ── MEDLEMMAR (admin: betald Pro vs gratispro/trial) ──────────
 export async function fetchProMembers() {
   // Alla med PRO-åtkomst just nu. Klassas i UI:t: trial_source='referral' = gratispro.
