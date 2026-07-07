@@ -32,13 +32,13 @@ const PRICE_TIER = {
   [process.env.STRIPE_PRICE_ULTIMATE || '']: 'ultimate',
 };
 
-function amountToTier(amount) {
+export function amountToTier(amount) {
   if (amount == null) return null;
   if (amount <= 1200) return 'explorer';   // ~9 kr
   if (amount <= 3000) return 'pro';         // ~19 kr
   return 'ultimate';                        // 49 kr+
 }
-function priceToTier(price) {
+export function priceToTier(price) {
   if (!price) return null;
   return PRICE_TIER[price.id] || amountToTier(price.unit_amount);
 }
