@@ -1,7 +1,7 @@
 
 // SPÖKKARTAN v7 — Mobile-first, working auth, clean navigation
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { fetchPlaces, subscribeToPlaces, signInWithGoogle, signInWithEmail, signUpWithEmail, resetPasswordForEmail, signOut as supabaseSignOut, getProfile, onAuthChange, getSession, fetchPartners, createPartner, fetchPartnerPackages, submitPartnerQuestion, fetchPartnerQuestions, updatePartnerQuestion, fetchHunters, fetchHunterVisits, updateHunterProfile, upsertHunterVisit, createHunterOrder, submitPlaceSuggestion, fetchPlaceSuggestions, updatePlaceSuggestion, deletePlaceSuggestion, savePushSubscription, removePushSubscription, upsertPlaceReview, fetchMyPlaceReview, fetchPlaceReviewStats } from "./supabase";
+import { fetchPlaces, subscribeToPlaces, signInWithGoogle, signInWithEmail, signUpWithEmail, resetPasswordForEmail, signOut as supabaseSignOut, getProfile, onAuthChange, getSession, fetchPartners, createPartner, fetchPartnerPackages, submitPartnerQuestion, fetchPartnerQuestions, updatePartnerQuestion, fetchHunters, fetchHunterVisits, updateHunterProfile, upsertHunterVisit, submitPlaceSuggestion, fetchPlaceSuggestions, updatePlaceSuggestion, deletePlaceSuggestion, savePushSubscription, removePushSubscription, upsertPlaceReview, fetchMyPlaceReview, fetchPlaceReviewStats } from "./supabase";
 
 // Web-push: publik VAPID-nyckel (publik = ofarlig att baka in). Sätt
 // VITE_VAPID_PUBLIC_KEY i Vercel för att rotera. Privata nyckeln ligger ENDAST
@@ -768,19 +768,6 @@ function AuthModal({initMode,onClose,onSuccess}) {
                 <button type="button" onClick={()=>setShowP(s=>!s)} style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:16,color:"var(--tx3)",padding:4}}>{showP?"🙈":"👁️"}</button>
               </div>
             </div>
-            <label style={{display:"flex",gap:10,alignItems:"flex-start",cursor:"pointer",background:"var(--bg3)",border:`1px solid ${isHunter?"#7c3aed":"var(--b)"}`,borderRadius:11,padding:"12px 13px",transition:"border-color 0.2s"}}>
-              <input type="checkbox" checked={isHunter} onChange={e=>setIsHunter(e.target.checked)} style={{accentColor:"#7c3aed",width:18,height:18,marginTop:1,flexShrink:0}}/>
-              <div><div style={{fontSize:13,fontWeight:600,color:"var(--tx)"}}>🔍 Registrera mig som Spökjägare</div><div style={{fontSize:11,color:"var(--tx4)",marginTop:2}}>Kräver verifiering av admin. Ger tillgång till Anslagstavlan.</div></div>
-            </label>
-            {isHunter&&(
-              <>
-                <div><label style={lbl}>BIO (valfritt)</label><textarea className="inp" value={bio} onChange={e=>setBio(e.target.value)} rows={2} style={{resize:"none"}} placeholder="Berätta om din spökjakt…"/></div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                  <div><label style={lbl}>YOUTUBE</label><input className="inp inp-sm" value={yt} onChange={e=>setYt(e.target.value)} placeholder="youtube.com/…"/></div>
-                  <div><label style={lbl}>INSTAGRAM</label><input className="inp inp-sm" value={ig} onChange={e=>setIg(e.target.value)} placeholder="instagram.com/…"/></div>
-                </div>
-              </>
-            )}
             {err&&<div style={{background:"rgba(248,113,113,0.12)",border:"1px solid rgba(248,113,113,0.35)",borderRadius:9,padding:"10px 13px",fontSize:13,color:"#f87171"}}>{err}</div>}
             <button type="submit" className="btn btn-p btn-full" disabled={loading}>{loading?<Spinner/>:"Skapa konto →"}</button>
             <div style={{textAlign:"center",fontSize:12,color:"var(--tx4)"}}>Har konto? <span style={{color:"#a78bfa",cursor:"pointer"}} onClick={()=>{setMode("login");setErr("");setMsg("");}}>Logga in</span></div>
@@ -1964,91 +1951,7 @@ function HunterDetailModal({ h, user, onClose, onUpgrade }) {
   );
 }
 
-// ── UPPGRADERA SPÖKJÄGAR-PROFIL (modal) ───────────────────────
-function HunterUpgradeModal({ user, onClose }) {
-  const [selected, setSelected] = useState("premium");
-  const [loading, setLoading] = useState(false);
-  const [done, setDone] = useState(false);
-  const [err, setErr] = useState("");
-
-  async function order() {
-    if (!user) { setErr("Logga in först"); return; }
-    setLoading(true); setErr("");
-    try {
-      const t = HUNTER_TIERS[selected];
-      // I produktion: call createHunterOrder + redirect till Stripe Checkout
-      // Här simulerar vi en pending order (kräver inloggning)
-      try {
-        await createHunterOrder({
-          product: selected==="premium"?"premium_79":selected==="spotlight"?"spotlight_129":"article_1299",
-          amount: t.price,
-          notes: ""
-        });
-      } catch(_) { /* funkar inte utan Supabase-uppkoppling, men funkar lokalt */ }
-      setDone(true);
-    } catch(e) { setErr("Något gick fel: " + e.message); }
-    finally { setLoading(false); }
-  }
-
-  if (done) return (
-    <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
-      <div className="modal-sheet au" style={{textAlign:"center",padding:"32px 22px"}}>
-        <div style={{fontSize:48,marginBottom:12}}>📨</div>
-        <h2 style={{fontSize:18,fontWeight:800,color:"var(--tx)",marginBottom:8}}>Tack — beställning mottagen!</h2>
-        <p style={{fontSize:13,color:"var(--tx2)",lineHeight:1.65,marginBottom:18}}>
-          Fredrik kontaktar dig inom 24 timmar med betalningslänk för <strong style={{color:HUNTER_TIERS[selected].color}}>{HUNTER_TIERS[selected].label}</strong>.
-          {selected === "article" && " För artikeln bokar vi in en intervju (ca 30 min)."}
-        </p>
-        <Btn ch="Stäng" v="p" full onClick={onClose}/>
-      </div>
-    </div>
-  );
-
-  return (
-    <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
-      <div className="modal-sheet au" style={{maxHeight:"94vh",overflowY:"auto"}}>
-        <div className="modal-handle"/>
-        <button onClick={onClose} style={{position:"absolute",top:14,right:14,background:"none",border:"none",color:"var(--tx3)",cursor:"pointer",fontSize:22,padding:4}}>✕</button>
-        <h2 style={{fontSize:20,fontWeight:800,color:"var(--tx)",marginBottom:6}}>✨ Synas mer som spökjägare</h2>
-        <p style={{fontSize:12,color:"var(--tx3)",marginBottom:16,lineHeight:1.55}}>
-          Vill du marknadsföra din pod, kanal eller dig själv på Spökkartan? Välj nivå nedan.
-        </p>
-
-        <div style={{display:"grid",gap:11,marginBottom:14}}>
-          {Object.entries(HUNTER_TIERS).filter(([k])=>k!=="free").map(([code,t])=>{
-            const sel = selected===code;
-            return (
-              <button key={code} onClick={()=>setSelected(code)} style={{background:sel?`${t.color}1a`:"var(--bg3)",border:`2px solid ${sel?t.color:"var(--b)"}`,borderRadius:12,padding:"14px",cursor:"pointer",textAlign:"left",position:"relative"}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,marginBottom:6}}>
-                  <div>
-                    <div style={{fontSize:14,fontWeight:800,color:sel?t.color:"var(--tx)"}}>{t.label}</div>
-                    <div style={{fontSize:11,color:"var(--tx3)",marginTop:1}}>{t.pitch}</div>
-                  </div>
-                  <div style={{textAlign:"right",flexShrink:0}}>
-                    <div style={{fontSize:18,fontWeight:800,color:sel?t.color:"var(--tx)"}}>{t.price.toLocaleString("sv-SE")} kr</div>
-                    {t.period && <div style={{fontSize:9,color:"var(--tx4)"}}>{t.period}</div>}
-                  </div>
-                </div>
-                <ul style={{listStyle:"none",padding:0,margin:0,display:"grid",gap:3}}>
-                  {t.perks.map((perk,i)=>(<li key={i} style={{fontSize:11,color:"var(--tx2)",display:"flex",gap:6}}><span style={{color:t.color}}>✓</span> {perk}</li>))}
-                </ul>
-                {sel && <span style={{position:"absolute",top:12,right:12,color:t.color,fontSize:18,fontWeight:800}}>✓</span>}
-              </button>
-            );
-          })}
-        </div>
-
-        <div style={{fontSize:11,color:"var(--tx3)",marginBottom:12,padding:"9px 11px",background:"rgba(96,165,250,0.07)",border:"1px solid rgba(96,165,250,0.2)",borderRadius:9,lineHeight:1.55}}>
-          ℹ️ Du beställer nu — Fredrik skickar betalningslänk inom 24h. Avbryt när du vill.
-        </div>
-
-        {err && <div style={{background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.3)",borderRadius:8,padding:"8px 12px",fontSize:12,color:"#ef4444",marginBottom:10}}>{err}</div>}
-
-        <Btn ch={loading?"Skickar…":`Beställ ${HUNTER_TIERS[selected].label} →`} v="p" full onClick={order} disabled={loading}/>
-      </div>
-    </div>
-  );
-}
+// (Hunter-uppgraderingsmodalen borttagen — hunter-funktionen är pausad.)
 
 
 // ── SIMULATED SCRAPER DATA ────────────────────────────────────
@@ -2714,20 +2617,9 @@ const TIER_CONFIG = {
              perks: ["Allt i Pro","Förstasidesvisning emellanåt","Featured-band runt kortet","Cross-promo i nyhetsbrev (10k+)","En sponsrad blogg per kvartal","Snabbsupport av Fredrik"] },
 };
 
-// Tiers för SPÖKJÄGARE (privatpersoner som syns på spökjägarsidan)
+// Kvar enbart som stil-fallback för hunter-kort (betaltiers borttagna).
 const HUNTER_TIERS = {
-  free:      { label: "Gratis",       color: "#6b7280", price: 0,    period: "",
-               pitch: "Skapa profil och visa upp dig — kostar inget.",
-               perks: ["Profil med bio & bilder","Lista platser du varit på","Länka YouTube/IG/pod","Synlig i spökjägarlistan"] },
-  premium:   { label: "Premium",      color: "#a78bfa", price: 79,   period: "/mån",
-               pitch: "Featured emellanåt på första sidan + extra synlighet.",
-               perks: ["Allt i Gratis","Featured på spökjägar-startsidan emellanåt","Premium-badge","Egen banner & galleri","Push när vi lyfter dig"] },
-  spotlight: { label: "Spotlight",    color: "#fbbf24", price: 129,  period: "/mån",
-               pitch: "Permanent topp-placering + cross-promo i sociala medier.",
-               perks: ["Allt i Premium","Topp-placering hela månaden","Annons i nyhetsbrevet","Cross-promo i Spökkartans IG/Facebook","Direktkontakt med Fredrik"] },
-  article:   { label: "Egen artikel", color: "#f472b6", price: 1299, period: " engångskostnad",
-               pitch: "Skräddarsydd artikel skriven om dig + permanent länk.",
-               perks: ["Personlig intervju (30 min)","Artikel ~800–1200 ord skriven av redaktionen","Publiceras under 'Möt spökjägaren'","Permanent featured-länk på din profil","Delas i nyhetsbrev + sociala kanaler"] },
+  free: { label: "", color: "#34d399", price: 0, period: "", pitch: "", perks: [] },
 };
 
 // ── PARTNERS-VYN ──────────────────────────────────────────────
