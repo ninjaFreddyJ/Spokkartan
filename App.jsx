@@ -1,7 +1,7 @@
 
 // SPÖKKARTAN v7 — Mobile-first, working auth, clean navigation
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { fetchPlaces, subscribeToPlaces, signInWithGoogle, signInWithEmail, signUpWithEmail, resetPasswordForEmail, signOut as supabaseSignOut, getProfile, onAuthChange, getSession, fetchPartners, createPartner, fetchPartnerPackages, submitPartnerQuestion, fetchPartnerQuestions, updatePartnerQuestion, fetchHunters, fetchHunterVisits, updateHunterProfile, upsertHunterVisit, submitPlaceSuggestion, fetchPlaceSuggestions, updatePlaceSuggestion, deletePlaceSuggestion, savePushSubscription, removePushSubscription, upsertPlaceReview, fetchMyPlaceReview, fetchPlaceReviewStats } from "./supabase";
+import { fetchPlaces, subscribeToPlaces, signInWithGoogle, signInWithEmail, signUpWithEmail, resetPasswordForEmail, signOut as supabaseSignOut, getProfile, onAuthChange, getSession, fetchPartners, createPartner, fetchPartnerPackages, submitPartnerQuestion, fetchPartnerQuestions, updatePartnerQuestion, fetchHunters, fetchHunterVisits, updateHunterProfile, upsertHunterVisit, submitPlaceSuggestion, fetchPlaceSuggestions, updatePlaceSuggestion, deletePlaceSuggestion, savePushSubscription, removePushSubscription, upsertPlaceReview, fetchMyPlaceReview, fetchPlaceReviewStats, fetchProMembers } from "./supabase";
 
 // Web-push: publik VAPID-nyckel (publik = ofarlig att baka in). Sätt
 // VITE_VAPID_PUBLIC_KEY i Vercel för att rotera. Privata nyckeln ligger ENDAST
@@ -2000,6 +2000,16 @@ function AdminDash({allPlaces,setAllPlaces,user,onLogout}) {
   useEffect(()=>{ loadSuggestions(); },[]);
   const newSug=suggestions.filter(s=>s.status==="new").length;
 
+  // ── Medlemmar: betald Pro vs gratispro (referral-trial) ──
+  const [members,setMembers]=useState([]);
+  const [memLoading,setMemLoading]=useState(false);
+  const [memKind,setMemKind]=useState("paid"); // "paid" | "trial"
+  async function loadMembers(){ setMemLoading(true); try{ setMembers(await fetchProMembers()); }catch(e){ console.error(e); } setMemLoading(false); }
+  useEffect(()=>{ loadMembers(); },[]);
+  const isTrialMember=(m)=>m.trial_source==="referral";
+  const paidMembers=members.filter(m=>!isTrialMember(m));
+  const trialMembers=members.filter(isTrialMember);
+
   // Web-push broadcast
   const [pushMsg,setPushMsg]=useState("");
   const [pushSecret,setPushSecret]=useState("");
@@ -2041,7 +2051,7 @@ function AdminDash({allPlaces,setAllPlaces,user,onLogout}) {
     setInstruction("");
   }
 
-  const TABS=[["overview","📊","Översikt"],["places","📍","Platser"],["suggestions","📥","Förslag"],["scraper","🔍","Scraper"],["users","👤","Användare"],["settings","⚙️","Inställningar"]];
+  const TABS=[["overview","📊","Översikt"],["places","📍","Platser"],["suggestions","📥","Förslag"],["scraper","🔍","Scraper"],["members","💎","Pro"],["users","👤","Användare"],["settings","⚙️","Inställningar"]];
 
   return(
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
@@ -2310,6 +2320,54 @@ function AdminDash({allPlaces,setAllPlaces,user,onLogout}) {
                 </table>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* ── PRO-MEDLEMMAR (betald vs gratispro) ── */}
+        {tab==="members"&&(
+          <div>
+            <div style={{display:"flex",gap:10,marginBottom:14,alignItems:"stretch",flexWrap:"wrap"}}>
+              {[["paid","💳","Betald Pro",paidMembers.length,"#34d399"],["trial","🎁","Gratispro",trialMembers.length,"#fbbf24"]].map(([k,icon,label,n,c])=>(
+                <button key={k} onClick={()=>setMemKind(k)} style={{flex:"1 1 140px",background:memKind===k?`${c}1a`:"var(--card)",border:`1px solid ${memKind===k?c:"var(--b)"}`,borderTop:`3px solid ${c}`,borderRadius:12,padding:"12px 14px",cursor:"pointer",textAlign:"left",transition:"all 0.15s"}}>
+                  <div style={{fontSize:16,marginBottom:3}}>{icon}</div>
+                  <div style={{fontSize:24,fontWeight:800,color:"var(--tx)"}}>{n}</div>
+                  <div style={{fontSize:11,color:memKind===k?c:"var(--tx3)",fontWeight:600}}>{label}</div>
+                </button>
+              ))}
+              <button onClick={loadMembers} title="Uppdatera" style={{background:"var(--bg3)",border:"1px solid var(--b)",borderRadius:12,padding:"0 14px",cursor:"pointer",color:"var(--tx3)",fontSize:16}}>↻</button>
+            </div>
+            <div style={{fontSize:11,color:"var(--tx4)",marginBottom:10,lineHeight:1.5}}>
+              {memKind==="paid"
+                ? "Betalande medlemmar (Explorer/Pro/Ultimate via Stripe eller manuellt beviljade)."
+                : "Gratispro = 7-dagars referral-trial. Löper ut vid datumet nedan om de inte konverterar."}
+            </div>
+            {memLoading ? <div style={{padding:"24px",textAlign:"center"}}><Spinner/></div> : (
+              (memKind==="paid"?paidMembers:trialMembers).length===0
+                ? <div style={{padding:"24px",textAlign:"center",fontSize:13,color:"var(--tx4)"}}>Inga {memKind==="paid"?"betalande":"gratispro"}-medlemmar ännu.</div>
+                : <div style={{background:"var(--card)",border:"1px solid var(--b)",borderRadius:12,overflow:"hidden"}}>
+                    <div style={{overflowX:"auto"}}>
+                      <table className="atbl">
+                        <thead><tr><th>Namn</th><th>Nivå</th><th>{memKind==="trial"?"Löper ut":"Betalning"}</th><th>Skapad</th></tr></thead>
+                        <tbody>{(memKind==="paid"?paidMembers:trialMembers).map(m=>{
+                          const exp=m.pro_expires_at?new Date(m.pro_expires_at):null;
+                          const daysLeft=exp?Math.ceil((exp-new Date())/86400000):null;
+                          return(
+                            <tr key={m.id}>
+                              <td style={{fontWeight:500,color:"var(--tx)"}}><div style={{fontSize:12}}>{m.full_name||"—"}</div><div style={{fontSize:9,color:"var(--tx4)"}}>{m.email}</div></td>
+                              <td><span style={{fontSize:9,fontWeight:700,color:m.tier==="ultimate"?"#fbbf24":m.tier==="pro"?"#a78bfa":m.tier==="explorer"?"#34d399":"var(--tx3)",textTransform:"uppercase"}}>{m.tier&&m.tier!=="free"?m.tier:(memKind==="trial"?"trial":"pro")}</span></td>
+                              <td style={{fontSize:11}}>
+                                {memKind==="trial"
+                                  ? (exp?<span style={{color:daysLeft>0?"#fbbf24":"#f87171"}}>{daysLeft>0?`${daysLeft} dgr kvar`:"utgången"}</span>:<span style={{color:"var(--tx4)"}}>—</span>)
+                                  : (m.stripe_customer_id?<span style={{color:"#34d399"}}>💳 Stripe</span>:<span style={{color:"var(--tx4)"}}>manuell</span>)}
+                              </td>
+                              <td style={{fontSize:10,color:"var(--tx4)"}}>{m.created_at?.slice(0,10)}</td>
+                            </tr>
+                          );
+                        })}</tbody>
+                      </table>
+                    </div>
+                  </div>
+            )}
           </div>
         )}
 

@@ -344,6 +344,18 @@ export async function createHunterOrder({ product, amount, notes }) {
   return data;
 }
 
+// ── MEDLEMMAR (admin: betald Pro vs gratispro/trial) ──────────
+export async function fetchProMembers() {
+  // Alla med PRO-åtkomst just nu. Klassas i UI:t: trial_source='referral' = gratispro.
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id,email,full_name,tier,is_pro,trial_source,pro_expires_at,stripe_customer_id,created_at')
+    .eq('is_pro', true)
+    .order('created_at', { ascending: false });
+  if (error) { console.error('[Spokkartan] fetchProMembers:', error.message); return []; }
+  return data || [];
+}
+
 // ── PLATSRECENSIONER (knappval: upplevelse + spöklighet + taggar) ──
 export async function upsertPlaceReview({ place_id, experience, spook_level, tags = [], note = '' }) {
   const { data: { user } } = await supabase.auth.getUser();
