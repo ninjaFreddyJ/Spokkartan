@@ -18,6 +18,7 @@
 
 import crypto from 'crypto';
 import { createClient } from '@supabase/supabase-js';
+import { notifyPurchase } from '../lib/notify/discord.js';
 
 export const config = { api: { bodyParser: false } };
 
@@ -93,6 +94,8 @@ export default async function handler(req, res) {
           updated_at: nowIso,
         }).eq('email', email);
         handled = { type: event.type, email, tier };
+        // Pinga Discord om det nya köpet (tyst no-op om ingen webhook satts).
+        await notifyPurchase({ email, tier, amount: obj.amount_total, currency: obj.currency, kind: 'purchase' }).catch(() => {});
       }
     } else if (event.type === 'customer.subscription.updated' || event.type === 'customer.subscription.created') {
       const active = ['active', 'trialing', 'past_due'].includes(obj.status);
@@ -108,6 +111,7 @@ export default async function handler(req, res) {
       if (rows && rows[0]) {
         await supabase.from('profiles').update({ tier: 'free', pro_expires_at: null, updated_at: nowIso }).eq('id', rows[0].id);
         handled = { type: event.type, tier: 'free' };
+        await notifyPurchase({ email: null, tier: 'free', kind: 'canceled' }).catch(() => {});
       }
     }
   } catch (err) {
