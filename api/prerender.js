@@ -23,6 +23,10 @@ const PLACE_SEG = { sv: 'plats', en: 'place', de: 'ort', no: 'sted', da: 'sted' 
 
 const esc = (s) => String(s == null ? '' : s)
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+// Externa guideplattformar länkas aldrig — bokningslänkar ska peka på boendet.
+const isExternalGuideUrl = (url) =>
+  ['getyourguide.', 'tripadvisor.', 'viator.'].some((d) => String(url || '').toLowerCase().includes(d));
 const jsonLd = (obj) => `<script type="application/ld+json">${JSON.stringify(obj).replace(/</g, '\\u003c')}</script>`;
 
 // Lokaliserade UI-etiketter (sv/en fullt, övriga faller tillbaka på en).
@@ -118,7 +122,7 @@ export default async function handler(req, res) {
           `<li><a href="${esc(placeUrl(origin, lang, r.slug || r.id))}">${esc(r.name)}${r.region ? ' — ' + esc(r.region) : ''}</a></li>`).join('')}</ul></section>`;
       }
 
-      const bookHtml = (place.bookable && place.booking_url)
+      const bookHtml = (place.bookable && place.booking_url && !isExternalGuideUrl(place.booking_url))
         ? `<p><a href="${esc(place.booking_url)}" rel="nofollow">${esc(L.book)} →</a></p>` : '';
 
       const spookHtml = (stats && stats.review_count)
