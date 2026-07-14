@@ -1,7 +1,7 @@
 
 // SPÖKKARTAN v7 — Mobile-first, working auth, clean navigation
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { fetchPlaces, subscribeToPlaces, signInWithGoogle, signInWithEmail, signUpWithEmail, resetPasswordForEmail, signOut as supabaseSignOut, getProfile, onAuthChange, getSession, fetchPartners, createPartner, fetchPartnerPackages, submitPartnerQuestion, fetchPartnerQuestions, updatePartnerQuestion, fetchHunters, fetchHunterVisits, updateHunterProfile, upsertHunterVisit, submitPlaceSuggestion, fetchPlaceSuggestions, updatePlaceSuggestion, deletePlaceSuggestion, savePushSubscription, removePushSubscription, upsertPlaceReview, fetchMyPlaceReview, fetchPlaceReviewStats, fetchProMembers, redeemCode } from "./supabase";
+import { fetchPlaces, subscribeToPlaces, signInWithGoogle, signInWithEmail, signUpWithEmail, resetPasswordForEmail, signOut as supabaseSignOut, getProfile, onAuthChange, getSession, fetchPartners, createPartner, fetchPartnerPackages, submitPartnerQuestion, fetchPartnerQuestions, updatePartnerQuestion, fetchHunters, fetchHunterVisits, updateHunterProfile, upsertHunterVisit, submitPlaceSuggestion, fetchPlaceSuggestions, updatePlaceSuggestion, deletePlaceSuggestion, savePushSubscription, removePushSubscription, upsertPlaceReview, fetchMyPlaceReview, fetchPlaceReviewStats, fetchProMembers, redeemCode, fetchTourPartnersForPlace, fetchPartnerPlaceIds, setPartnerPlaces } from "./supabase";
 
 // Web-push: publik VAPID-nyckel (publik = ofarlig att baka in). Sätt
 // VITE_VAPID_PUBLIC_KEY i Vercel för att rotera. Privata nyckeln ligger ENDAST
@@ -82,12 +82,8 @@ const HAUNTED_HOTELS = [
   {name:"Dragsholm Slot",region:"Sjælland",country:"Danmark",price:"fr. 2 400 kr/natt",scary:5,url:"https://www.booking.com/searchresults.en.html?ss=Dragsholm+Slot",partner:"Booking.com"},
   {name:"Dalen Hotel",region:"Telemark",country:"Norge",price:"fr. 1 500 kr/natt",scary:4,url:"https://www.booking.com/searchresults.sv.html?ss=Dalen+Hotel+Norway",partner:"Booking.com"},
 ];
-const GHOST_TOURS = [
-  {name:"Stockholm Ghost Walk",city:"Stockholm",price:"fr. 299 kr",duration:"90 min",rating:4.8,reviews:2340,url:"https://www.getyourguide.com/stockholm-l50/stockholm-90-minute-ghost-walk-historical-tour-t249222/",partner:"GetYourGuide"},
-  {name:"Oslo Spøkelsesvandring",city:"Oslo",price:"fr. 349 kr",duration:"90 min",rating:4.7,reviews:678,url:"https://www.getyourguide.com/oslo-l4/",partner:"GetYourGuide"},
-  {name:"Edinburgh Underground Vaults",city:"Edinburgh",price:"fr. 499 kr",duration:"75 min",rating:4.9,reviews:5670,url:"https://www.getyourguide.com/edinburgh-l1/",partner:"GetYourGuide"},
-  {name:"Uppsala Mörka Hemligheter",city:"Uppsala",price:"fr. 449 kr",duration:"120 min",rating:4.9,reviews:156,url:"https://www.tripadvisor.com/",partner:"TripAdvisor"},
-];
+// Vandringar tipsas enbart via Spökkartans egna partners (typ "tour") —
+// inga länkar till externa guideplattformar som GetYourGuide/TripAdvisor.
 const BASE_HUNTERS = [
   {
     id:"h1",name:"Matti Hietasaari",verified:true,speciality:"EMF & ITC",since:"2015",places:47,
@@ -967,6 +963,11 @@ function PlacePopup({place,isPro,tier,onRead,onClose,onAddRoadtrip,inRoadtrip}) 
           <button onClick={()=>{onAddRoadtrip(place.id);onClose();}} style={{width:"100%",background:inRoadtrip?"rgba(251,191,36,0.1)":"transparent",border:`1px solid ${inRoadtrip?"#fbbf24":"var(--b)"}`,borderRadius:10,padding:"11px",fontSize:12,fontWeight:600,color:inRoadtrip?"#fbbf24":"var(--tx4)",cursor:"pointer"}}>
             {inRoadtrip?"✓ I din roadtrip":"+ Lägg till roadtrip"}
           </button>
+          {place.bookable&&(place.booking_url||place.bookingUrl)&&(
+            <a href={place.booking_url||place.bookingUrl} target="_blank" rel="noreferrer" style={{display:"block",textAlign:"center",marginTop:10,background:"rgba(52,211,153,0.08)",border:"1px solid rgba(52,211,153,0.25)",borderRadius:10,padding:"10px",fontSize:11,fontWeight:700,color:"#34d399",textDecoration:"none"}}>
+              💡 Visste du att du kan boka ett rum här? →
+            </a>
+          )}
         </div>
       </div>
     </div>
@@ -1121,10 +1122,46 @@ function Reader({place,allPlaces,isPro,onClose,onNavigate,upgrade,roadtrip,setRo
   }
   function openReview(){ if(!user){onAuth?.();return;} setShowReview(true); }
 
+  // ── Vandringar som besöker platsen (Spökkartans egna partners) ──
+  const [tourPartners,setTourPartners]=useState([]);
+  const [openTour,setOpenTour]=useState(null);
+  useEffect(()=>{
+    let on=true;
+    setTourPartners([]);
+    fetchTourPartnersForPlace(place.id).then(tp=>{if(on)setTourPartners(tp||[]);}).catch(()=>{});
+    return ()=>{on=false;};
+  },[place.id]);
+
+  const tourSection=tourPartners.length>0&&(
+    <div style={{background:"linear-gradient(135deg,rgba(124,58,237,0.08),rgba(124,58,237,0.02))",border:"1px solid rgba(124,58,237,0.25)",borderRadius:14,padding:"16px",marginBottom:20}}>
+      <div style={{fontSize:12,fontWeight:800,color:"#a78bfa",marginBottom:3}}>🚶 Den här platsen ingår i en vandring</div>
+      <div style={{fontSize:12,color:"var(--tx3)",lineHeight:1.6,marginBottom:12}}>
+        Vill du höra historien berättas på plats? {place.name} är ett stopp på {tourPartners.length===1?"den här vandringen":"de här vandringarna"}.
+      </div>
+      {tourPartners.map((tp,i)=>(
+        <button key={tp.id} onClick={()=>setOpenTour(tp)} style={{display:"flex",gap:10,alignItems:"center",width:"100%",background:"var(--card)",border:"1px solid var(--b)",borderRadius:10,padding:"11px 12px",marginBottom:i<tourPartners.length-1?7:0,cursor:"pointer",textAlign:"left"}}>
+          {tp.avatar
+            ?<img src={tp.avatar} alt="" style={{width:38,height:38,borderRadius:9,objectFit:"cover",flexShrink:0}}/>
+            :<span style={{width:38,height:38,borderRadius:9,background:"var(--bg3)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>🚶</span>}
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:12,fontWeight:700,color:"var(--tx)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+              {tp.name}{tp.verified&&<span style={{color:"#34d399",marginLeft:4}}>✓</span>}
+            </div>
+            <div style={{fontSize:10,color:"var(--tx3)"}}>
+              {tp.tour_note||tp.regions_covered?.slice(0,2).join(", ")||"Guidad vandring"}{tp.price_from?` · fr. ${tp.price_from} kr`:""}
+            </div>
+          </div>
+          <div style={{fontSize:11,fontWeight:600,color:"#a78bfa",flexShrink:0}}>Se vandringen →</div>
+        </button>
+      ))}
+    </div>
+  );
+
   return(
     <div style={{position:"fixed",inset:0,background:"var(--bg)",zIndex:800,display:"flex",flexDirection:"column",fontFamily:"'Poppins',sans-serif"}}>
       <style>{CSS}</style>
       {showReview&&<VisitReviewModal place={place} existing={myReview} onClose={()=>setShowReview(false)} onSaved={async()=>{await reloadReview();if(!visited.includes(place.id))setVisited(v=>[...v,place.id]);setShowReview(false);}}/>}
+      {openTour&&<PartnerDetailModal partner={openTour} user={user} onClose={()=>setOpenTour(null)} allPlaces={allPlaces} onOpenPlace={p=>{setOpenTour(null);onNavigate(p);}}/>}
 
       {/* ── Top bar ── */}
       <div style={{background:"rgba(7,6,15,0.97)",backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",borderBottom:"1px solid var(--b)",padding:"10px 14px",display:"flex",alignItems:"center",gap:8,flexShrink:0,zIndex:10}}>
@@ -1225,6 +1262,9 @@ function Reader({place,allPlaces,isPro,onClose,onNavigate,upgrade,roadtrip,setRo
                   <Btn ch="👻 Bli Ghost Hunter →" v="p" full onClick={upgrade}/>
                 </div>
 
+                {/* Vandringar som besöker platsen */}
+                {tourSection}
+
                 {/* Related free places */}
                 <div style={{marginBottom:20}}>
                   <div style={{fontSize:11,fontWeight:700,color:"var(--tx2)",marginBottom:10}}>👻 Andra platser du kan läsa gratis</div>
@@ -1290,11 +1330,20 @@ function Reader({place,allPlaces,isPro,onClose,onNavigate,upgrade,roadtrip,setRo
                   {myReview?"Uppdatera din upplevelse":"Dela din upplevelse"}
                 </button>
 
-                {/* Booking */}
-                {place.bookable&&place.bookingUrl&&(
-                  <a href={place.bookingUrl} target="_blank" rel="noreferrer" style={{display:"block",textAlign:"center",background:"rgba(52,211,153,0.07)",border:"1px solid rgba(52,211,153,0.22)",borderRadius:11,padding:"13px",fontSize:13,fontWeight:600,color:"#34d399",marginBottom:20}}>
-                    🏨 Boka boende här (affiliate) →
-                  </a>
+                {/* Vandringar som besöker platsen */}
+                {tourSection}
+
+                {/* Booking — trevligt tips om platsen faktiskt går att boka */}
+                {place.bookable&&(place.booking_url||place.bookingUrl)&&(
+                  <div style={{background:"linear-gradient(135deg,rgba(52,211,153,0.08),rgba(52,211,153,0.02))",border:"1px solid rgba(52,211,153,0.25)",borderRadius:14,padding:"16px",marginBottom:20}}>
+                    <div style={{fontSize:13,fontWeight:800,color:"#34d399",marginBottom:4}}>💡 Visste du att du kan boka ett rum här?</div>
+                    <div style={{fontSize:12,color:"var(--tx3)",lineHeight:1.6,marginBottom:12}}>
+                      {place.name} tar emot gäster — sov en natt och upplev berättelsen du just läst, på riktigt.
+                    </div>
+                    <a href={place.booking_url||place.bookingUrl} target="_blank" rel="noreferrer" style={{display:"block",textAlign:"center",background:"linear-gradient(135deg,#34d399,#059669)",borderRadius:10,padding:"12px",fontSize:13,fontWeight:700,color:"#fff",textDecoration:"none"}}>
+                      🏨 Boka ett rum →
+                    </a>
+                  </div>
                 )}
 
                 {/* ── Hotel upsell (om platsen är scary>=4 eller hotell i närheten) ── */}
@@ -2413,7 +2462,8 @@ function AdminDash({allPlaces,setAllPlaces,user,onLogout}) {
             </div>
             <div style={{background:"var(--card)",border:"1px solid var(--b)",borderRadius:12,padding:"14px"}}>
               <div style={{fontSize:12,fontWeight:700,color:"var(--tx)",marginBottom:10}}>🔗 Affiliate-ID:n</div>
-              {[["Booking.com",""],["GetYourGuide",""],["Amazon","spokkartan-21"],["TripAdvisor",""]].map(([name,val])=>(
+              <div style={{fontSize:10,color:"var(--tx4)",marginBottom:10,lineHeight:1.6}}>Endast boende & utrustning — vandringar länkas aldrig via externa guideplattformar utan går via våra egna partners.</div>
+              {[["Booking.com",""],["Amazon","spokkartan-21"]].map(([name,val])=>(
                 <div key={name} style={{display:"flex",gap:8,alignItems:"center",marginBottom:9}}>
                   <span style={{fontSize:11,color:"var(--tx3)",width:100,flexShrink:0}}>{name}</span>
                   <input className="inp inp-sm" defaultValue={val} placeholder="Ditt affiliate-ID" style={{flex:1}}/>
@@ -2685,7 +2735,7 @@ const PARTNER_TYPES = [
   { code: "all",    label: "Alla",            icon: "🌐", short: "Alla partners",            tag: "Bläddra allt" },
   { code: "medium", label: "Medium",          icon: "🔮", short: "Sittningar & seanser",     tag: "Spirituell vägledning" },
   { code: "tarot",  label: "Tarot & spådom",  icon: "🃏", short: "Tarotläggningar online & på plats", tag: "Online & fysiskt" },
-  { code: "tour",   label: "Spökvandring",    icon: "🚶", short: "Guidade nattvandringar",   tag: "Kvällsupplevelser" },
+  { code: "tour",   label: "Spök- & stadsvandring", icon: "🚶", short: "Guidade vandringar", tag: "Kvällsupplevelser" },
   { code: "event",  label: "Event & företag", icon: "🎭", short: "Bolag som arrangerar event", tag: "Privat & företag" },
   { code: "hotel",  label: "Hemsökt boende",  icon: "🏰", short: "Övernatta i spökhus",      tag: "Boka natt" },
   { code: "dinner", label: "Spökmiddag",      icon: "🍽️", short: "Middag med spökhistorier", tag: "Mat + skräck" },
@@ -2713,7 +2763,7 @@ const HUNTER_TIERS = {
 };
 
 // ── PARTNERS-VYN ──────────────────────────────────────────────
-function PartnersView({ user, onAuth, onCreate }) {
+function PartnersView({ user, onAuth, onCreate, allPlaces = [], onOpenPlace }) {
   const [partners, setPartners] = useState([]);
   const [filter, setFilter] = useState("all");
   const [loading, setLoading] = useState(true);
@@ -2840,7 +2890,7 @@ function PartnersView({ user, onAuth, onCreate }) {
       </div>
 
       {/* DETALJVY */}
-      {openPartner && <PartnerDetailModal partner={openPartner} user={user} onClose={()=>setOpenPartner(null)}/>}
+      {openPartner && <PartnerDetailModal partner={openPartner} user={user} onClose={()=>setOpenPartner(null)} allPlaces={allPlaces} onOpenPlace={p=>{setOpenPartner(null);onOpenPlace?.(p);}}/>}
     </div>
   );
 }
@@ -2893,12 +2943,49 @@ function PartnerCard({ p, onClick }) {
   );
 }
 
+// ── VANDRINGAR I SHOPEN (endast egna partners) ───────────────
+function TourPartnersShopSection({ user, allPlaces, onOpenPlace, onBrowsePartners, onBecomePartner }) {
+  const [tours, setTours] = useState(null);
+  const [openTour, setOpenTour] = useState(null);
+
+  useEffect(() => {
+    fetchPartners({ type: "tour" }).then(p => setTours(p || [])).catch(()=>setTours([]));
+  }, []);
+
+  return (
+    <>
+      <div style={{fontSize:12,fontWeight:700,color:"var(--tx)",marginBottom:8}}>🚶 Spök- & stadsvandringar</div>
+      {tours === null ? (
+        <div style={{fontSize:12,color:"var(--tx3)",padding:"14px 0"}}>Laddar vandringar…</div>
+      ) : tours.length === 0 ? (
+        <div style={{background:"var(--card)",border:"1px dashed var(--b2)",borderRadius:12,padding:"16px",textAlign:"center",marginBottom:9}}>
+          <div style={{fontSize:28,marginBottom:6}}>🚶</div>
+          <div style={{fontSize:12,fontWeight:700,color:"var(--tx)",marginBottom:4}}>Snart hittar du vandringar här</div>
+          <div style={{fontSize:11,color:"var(--tx3)",lineHeight:1.55,marginBottom:12}}>
+            Vi listar bara spök- och stadsvandringar från Spökkartans egna partners — inga externa guideplattformar.
+          </div>
+          <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}>
+            <Btn ch="🌟 Se alla partners" v="ghost" sz="sm" onClick={onBrowsePartners}/>
+            <Btn ch="✨ Driver du vandringar? Bli partner" v="p" sz="sm" onClick={onBecomePartner}/>
+          </div>
+        </div>
+      ) : (
+        <div style={{display:"grid",gap:10,marginBottom:9}}>
+          {tours.map(p => <PartnerCard key={p.id} p={p} onClick={()=>setOpenTour(p)}/>)}
+        </div>
+      )}
+      {openTour && <PartnerDetailModal partner={openTour} user={user} onClose={()=>setOpenTour(null)} allPlaces={allPlaces} onOpenPlace={p=>{setOpenTour(null);onOpenPlace?.(p);}}/>}
+    </>
+  );
+}
+
 // ── PARTNER-DETALJVY (modal) ─────────────────────────────────
-function PartnerDetailModal({ partner, user, onClose }) {
+function PartnerDetailModal({ partner, user, onClose, allPlaces = [], onOpenPlace }) {
   const [packages, setPackages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showQuestion, setShowQuestion] = useState(false);
   const [selectedPkg, setSelectedPkg] = useState(null);
+  const [tourPlaces, setTourPlaces] = useState([]);
   const typeMeta = PARTNER_TYPES.find(t => t.code === partner.type) || PARTNER_TYPES[0];
 
   useEffect(() => {
@@ -2906,6 +2993,12 @@ function PartnerDetailModal({ partner, user, onClose }) {
       setPackages(pkgs || []);
       setLoading(false);
     }).catch(()=>setLoading(false));
+    // Platser på Spökkartan som ingår i vandringen
+    setTourPlaces([]);
+    fetchPartnerPlaceIds(partner.id).then(ids => {
+      const set = new Set(ids || []);
+      setTourPlaces(allPlaces.filter(p => set.has(p.id)));
+    }).catch(()=>{});
   }, [partner.id]);
 
   function handleAskQuestion(pkg) {
@@ -2961,6 +3054,20 @@ function PartnerDetailModal({ partner, user, onClose }) {
           <div style={{marginBottom:14,background:"var(--bg3)",border:"1px solid var(--b)",borderRadius:11,padding:"12px 14px"}}>
             <div style={{fontSize:10,fontWeight:700,color:"#34d399",letterSpacing:1.5,textTransform:"uppercase",marginBottom:6}}>✦ Vad får kunden ut?</div>
             <div style={{fontSize:13,color:"var(--tx)",lineHeight:1.7,whiteSpace:"pre-wrap"}}>{partner.what_customer_gets}</div>
+          </div>
+        )}
+
+        {/* PLATSER PÅ VANDRINGEN */}
+        {tourPlaces.length > 0 && (
+          <div style={{marginBottom:14,background:"rgba(124,58,237,0.06)",border:"1px solid rgba(124,58,237,0.2)",borderRadius:11,padding:"12px 14px"}}>
+            <div style={{fontSize:10,fontWeight:700,color:"#a78bfa",letterSpacing:1.5,textTransform:"uppercase",marginBottom:8}}>👻 Platser på vandringen</div>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              {tourPlaces.map(p => (
+                <button key={p.id} onClick={()=>onOpenPlace?.(p)} style={{background:"var(--card)",border:"1px solid var(--b2)",borderRadius:8,padding:"6px 11px",fontSize:11,fontWeight:600,color:"var(--tx)",cursor:onOpenPlace?"pointer":"default",display:"flex",gap:5,alignItems:"center"}}>
+                  <span>{TYPE_ICON[p.type]||"👻"}</span>{p.name}{onOpenPlace&&<span style={{color:"#a78bfa"}}>→</span>}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
@@ -3127,7 +3234,7 @@ function PartnerQuestionModal({ partner, pkg, user, onClose }) {
 }
 
 // ── BLI PARTNER (modal) ──────────────────────────────────────
-function BecomePartnerModal({ onClose, onSuccess, user }) {
+function BecomePartnerModal({ onClose, onSuccess, user, allPlaces = [] }) {
   const [type, setType] = useState("medium");
   const [name, setName] = useState(user?.name || "");
   const [tagline, setTagline] = useState("");
@@ -3146,13 +3253,23 @@ function BecomePartnerModal({ onClose, onSuccess, user }) {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
   const [step, setStep] = useState(1); // 1: typ+grund, 2: paket+priser, 3: klart
+  // Vandringar: vilka platser på Spökkartan ingår? (länkas från platssidorna)
+  const [tourPlaceIds, setTourPlaceIds] = useState([]);
+  const [placeSearch, setPlaceSearch] = useState("");
+  const placeMatches = placeSearch.trim()
+    ? allPlaces.filter(p =>
+        !tourPlaceIds.includes(p.id) &&
+        (p.name.toLowerCase().includes(placeSearch.trim().toLowerCase()) ||
+         (p.region||"").toLowerCase().includes(placeSearch.trim().toLowerCase()))
+      ).slice(0, 6)
+    : [];
 
   async function submit() {
     if (!name.trim()) { setErr("Namn krävs"); return; }
     if (!type) { setErr("Välj typ"); return; }
     setLoading(true); setErr("");
     try {
-      await createPartner({
+      const created = await createPartner({
         type, name: name.trim(),
         tagline: tagline.trim(), bio: bio.trim(),
         what_customer_gets: whatGets.trim(),
@@ -3164,6 +3281,11 @@ function BecomePartnerModal({ onClose, onSuccess, user }) {
         price_from: priceFrom ? parseInt(priceFrom,10) : null,
         tier, status: "pending",
       });
+      if (type === "tour" && created?.id) {
+        // Koppla vandringens platser — misslyckas tyst, ansökan är redan inne
+        await setPartnerPlaces(created.id, tourPlaceIds).catch(e =>
+          console.warn("[Spokkartan] setPartnerPlaces:", e?.message || e));
+      }
       setStep(3);
     } catch(e) {
       setErr("Kunde inte spara: " + e.message);
@@ -3234,6 +3356,40 @@ function BecomePartnerModal({ onClose, onSuccess, user }) {
 
             <label style={lbl}>Regioner / städer (kommaseparerat)</label>
             <input style={inp} value={regions} onChange={e=>setRegions(e.target.value)} placeholder="Stockholm, Uppsala, Östergötland"/>
+
+            {type==="tour"&&(
+              <>
+                <label style={lbl}>Platser på Spökkartan som ingår i vandringen</label>
+                <p style={{fontSize:10,color:"var(--tx4)",lineHeight:1.55,margin:"0 0 8px"}}>
+                  Välj platserna ni besöker — varje platssida länkar då direkt till er vandring. 👻
+                </p>
+                {tourPlaceIds.length>0&&(
+                  <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>
+                    {tourPlaceIds.map(id=>{
+                      const p=allPlaces.find(x=>x.id===id);
+                      return (
+                        <span key={id} style={{background:"rgba(124,58,237,0.15)",border:"1px solid #7c3aed",borderRadius:14,padding:"4px 10px",fontSize:11,fontWeight:600,color:"#a78bfa",display:"flex",gap:5,alignItems:"center"}}>
+                          {p?.name||id}
+                          <button onClick={()=>setTourPlaceIds(ids=>ids.filter(x=>x!==id))} style={{background:"none",border:"none",color:"#a78bfa",cursor:"pointer",fontSize:12,padding:0}}>✕</button>
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+                <input style={inp} value={placeSearch} onChange={e=>setPlaceSearch(e.target.value)} placeholder="Sök plats — t.ex. Borgvattnet…"/>
+                {placeMatches.length>0&&(
+                  <div style={{border:"1px solid var(--b)",borderRadius:9,marginTop:-6,marginBottom:10,overflow:"hidden"}}>
+                    {placeMatches.map(p=>(
+                      <button key={p.id} onClick={()=>{setTourPlaceIds(ids=>[...ids,p.id]);setPlaceSearch("");}} style={{display:"flex",gap:8,alignItems:"center",width:"100%",background:"var(--bg3)",border:"none",borderBottom:"1px solid var(--b)",padding:"9px 12px",fontSize:12,color:"var(--tx)",cursor:"pointer",textAlign:"left"}}>
+                        <span>{TYPE_ICON[p.type]||"👻"}</span>
+                        <span style={{flex:1}}>{p.name}</span>
+                        <span style={{fontSize:10,color:"var(--tx4)"}}>{p.region}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
 
             <label style={lbl}>Lägsta pris (frivilligt — visas som "fr. X kr")</label>
             <input style={inp} type="number" value={priceFrom} onChange={e=>setPriceFrom(e.target.value)} placeholder="t.ex. 299"/>
@@ -4019,21 +4175,14 @@ export default function App() {
         {view==="shop"&&(
           <div style={{flex:1,overflowY:"auto",padding:"14px 16px",paddingBottom:80}}>
             <h2 style={{fontSize:15,fontWeight:800,color:"var(--tx)",marginBottom:4}}>🛒 Shop</h2>
-            <p style={{fontSize:11,color:"var(--tx3)",marginBottom:14}}>Ghost Tours & hemsökta hotell via affiliate · Spökjaktutrustning via Amazon Associates</p>
-            <div style={{fontSize:12,fontWeight:700,color:"var(--tx)",marginBottom:8}}>🎃 Ghost Tours</div>
-            {GHOST_TOURS.map((t,i)=>(
-              <div key={i} style={{background:"var(--card)",border:"1px solid var(--b)",borderRadius:12,padding:"13px",marginBottom:9}}>
-                <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
-                  <span style={{fontSize:12,fontWeight:700,color:"var(--tx)"}}>{t.name}</span>
-                  <Tag ch={t.partner} c="var(--tx3)"/>
-                </div>
-                <div style={{fontSize:10,color:"var(--tx3)",marginBottom:8}}>{t.city} · {t.duration} · {"★".repeat(Math.round(t.rating))} {t.rating} ({t.reviews.toLocaleString()})</div>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                  <span style={{fontSize:14,fontWeight:800,color:"var(--tx)"}}>{t.price}</span>
-                  <a href={t.url} target="_blank" rel="noreferrer" style={{background:"linear-gradient(135deg,var(--acc),var(--acc3))",borderRadius:8,padding:"7px 14px",fontSize:11,fontWeight:700,color:"#fff"}}>Boka →</a>
-                </div>
-              </div>
-            ))}
+            <p style={{fontSize:11,color:"var(--tx3)",marginBottom:14}}>Vandringar från Spökkartans egna partners · Spökjaktutrustning via Amazon Associates</p>
+            <TourPartnersShopSection
+              user={user}
+              allPlaces={allPlacesMut}
+              onOpenPlace={p=>setReading(p)}
+              onBrowsePartners={()=>setView("partners")}
+              onBecomePartner={()=>user?setShowBecomePartner(true):setAuth("login")}
+            />
             <div style={{fontSize:12,fontWeight:700,color:"var(--tx)",marginTop:16,marginBottom:8}}>🔦 Spökjaktutrustning (Amazon)</div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9}}>
               {[["📡","EMF-mätare","emf+detektor"],["📷","IR-kameror","infraröd+kamera+nattseende"],["🎙️","Röstinspelare","digital+röstinspelare+EVP"],["🔦","UV-ficklampor","uv+ficklampa+395nm"],["🌡️","Termometrar","infraröd+termometer"],["📚","Spöklitteratur","hemsökta+platser+Sverige+bok"]].map(([icon,name,q])=>(
@@ -4049,7 +4198,7 @@ export default function App() {
 
         {/* HUNTERS */}
         {view==="hunters"&&<HuntersPage user={user} setAuth={setAuth} setView={setView}/>}
-        {view==="partners"&&<PartnersView user={user} onAuth={setAuth} onCreate={()=>user?setShowBecomePartner(true):setAuth("login")}/>}
+        {view==="partners"&&<PartnersView user={user} onAuth={setAuth} onCreate={()=>user?setShowBecomePartner(true):setAuth("login")} allPlaces={allPlacesMut} onOpenPlace={p=>setReading(p)}/>}
         {view==="about"&&<AboutPage setView={setView}/>}
 
         {/* BOARD */}
@@ -4103,7 +4252,7 @@ export default function App() {
 
       {/* PRO MODAL */}
       {showPro&&<ProModal onClose={()=>setShowPro(false)} onSuccess={()=>setIsPro(true)} isPro={isPro} currentTier={effectiveTier(user,isPro)}/>}
-      {showBecomePartner&&<BecomePartnerModal user={user} onClose={()=>setShowBecomePartner(false)} onSuccess={()=>{setShowBecomePartner(false); alert("✅ Tack! Din ansökan är inskickad. Vi godkänner inom 24h och skickar bokstavligen e-post.");}}/>}
+      {showBecomePartner&&<BecomePartnerModal user={user} allPlaces={allPlacesMut} onClose={()=>setShowBecomePartner(false)} onSuccess={()=>{setShowBecomePartner(false); alert("✅ Tack! Din ansökan är inskickad. Vi godkänner inom 24h och skickar bokstavligen e-post.");}}/>}
 
       {/* SHARE MODAL */}
       {shareData&&<ShareMenu title={shareData.title} url={shareData.url} onClose={()=>setShareData(null)}/>}

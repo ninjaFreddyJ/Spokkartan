@@ -18,7 +18,16 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 
 // ── PLACES ─────────────────────────────────────────────────
 
+// Externa guideplattformar länkas inte från Spökkartan — vandringar tipsas
+// via våra egna partners i stället. Bokningslänkar ska peka på boendet.
+const EXTERNAL_GUIDE_PLATFORMS = ['getyourguide.', 'tripadvisor.', 'viator.'];
+export function isExternalGuideUrl(url) {
+  const u = (url || '').toLowerCase();
+  return EXTERNAL_GUIDE_PLATFORMS.some(domain => u.includes(domain));
+}
+
 function normalizePlace(row) {
+  const bookingUrl = isExternalGuideUrl(row.booking_url) ? '' : (row.booking_url || '');
   return {
     id: row.id,
     name: row.name,
@@ -31,8 +40,8 @@ function normalizePlace(row) {
     free: row.free === true,
     featured: row.featured === true,
     is_new: row.is_new === true,
-    bookable: row.bookable === true,
-    booking_url: row.booking_url || '',
+    bookable: row.bookable === true && !!bookingUrl,
+    booking_url: bookingUrl,
     img: row.img || '',
     img_credit: row.img_credit || '',
     img_author: row.img_author || '',
@@ -230,6 +239,44 @@ export async function fetchPartnerServices(partnerId) {
   const { data, error } = await supabase.from('partner_services').select('*').eq('partner_id', partnerId).eq('active', true);
   if (error) { console.error(error); return []; }
   return data || [];
+}
+
+// ── PARTNER ↔ PLATSER (vandringar som besöker platser) ─────
+// En plats som ingår i en spök-/stadsvandring länkar till vandringen,
+// och vandringens profil kan visa sina stopp.
+
+export async function fetchTourPartnersForPlace(placeId) {
+  const { data, error } = await supabase
+    .from('partner_places')
+    .select('note, partner:partners!inner(*)')
+    .eq('place_id', placeId)
+    .eq('partner.status', 'live')
+    .eq('partner.type', 'tour');
+  if (error) { console.error('[Spokkartan] fetchTourPartnersForPlace:', error.message); return []; }
+  return (data || [])
+    .filter(r => r.partner)
+    .map(r => ({ ...r.partner, tour_note: r.note || '' }));
+}
+
+export async function fetchPartnerPlaceIds(partnerId) {
+  const { data, error } = await supabase
+    .from('partner_places')
+    .select('place_id')
+    .eq('partner_id', partnerId);
+  if (error) { console.error('[Spokkartan] fetchPartnerPlaceIds:', error.message); return []; }
+  return (data || []).map(r => r.place_id);
+}
+
+export async function setPartnerPlaces(partnerId, placeIds = []) {
+  const { error: delError } = await supabase
+    .from('partner_places')
+    .delete()
+    .eq('partner_id', partnerId);
+  if (delError) throw delError;
+  if (!placeIds.length) return;
+  const rows = placeIds.map(place_id => ({ partner_id: partnerId, place_id }));
+  const { error } = await supabase.from('partner_places').insert(rows);
+  if (error) throw error;
 }
 
 // ── PAKET (priser + vad ingår) ─────────────────────────────
