@@ -1,7 +1,7 @@
 
 // SPÖKKARTAN v7 — Mobile-first, working auth, clean navigation
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { fetchPlaces, subscribeToPlaces, signInWithGoogle, signInWithEmail, signUpWithEmail, resetPasswordForEmail, signOut as supabaseSignOut, getProfile, onAuthChange, getSession, fetchPartners, createPartner, fetchPartnerPackages, submitPartnerQuestion, fetchPartnerQuestions, updatePartnerQuestion, fetchHunters, fetchHunterVisits, updateHunterProfile, upsertHunterVisit, submitPlaceSuggestion, fetchPlaceSuggestions, updatePlaceSuggestion, deletePlaceSuggestion, savePushSubscription, removePushSubscription, upsertPlaceReview, fetchMyPlaceReview, fetchPlaceReviewStats, fetchProMembers, redeemCode, fetchTourPartnersForPlace, fetchPartnerPlaceIds, setPartnerPlaces } from "./supabase";
+import { fetchPlaces, subscribeToPlaces, signInWithGoogle, signInWithEmail, signUpWithEmail, resetPasswordForEmail, signOut as supabaseSignOut, getProfile, onAuthChange, getSession, fetchPartners, createPartner, fetchPartnerPackages, submitPartnerQuestion, fetchPartnerQuestions, updatePartnerQuestion, fetchHunters, fetchHunterVisits, updateHunterProfile, upsertHunterVisit, submitPlaceSuggestion, fetchPlaceSuggestions, updatePlaceSuggestion, deletePlaceSuggestion, savePushSubscription, removePushSubscription, upsertPlaceReview, fetchMyPlaceReview, fetchPlaceReviewStats, fetchProMembers, redeemCode, fetchTourPartnersForPlace, fetchPartnerPlaceIds, setPartnerPlaces, fetchTours, fetchToursForPlace, upsertTour, deleteTour, fetchTourPlaceIds, setTourPlaces } from "./supabase";
 
 // Web-push: publik VAPID-nyckel (publik = ofarlig att baka in). Sätt
 // VITE_VAPID_PUBLIC_KEY i Vercel för att rotera. Privata nyckeln ligger ENDAST
@@ -1122,22 +1122,40 @@ function Reader({place,allPlaces,isPro,onClose,onNavigate,upgrade,roadtrip,setRo
   }
   function openReview(){ if(!user){onAuth?.();return;} setShowReview(true); }
 
-  // ── Vandringar som besöker platsen (Spökkartans egna partners) ──
+  // ── Vandringar som besöker platsen ──
+  // Egna digitala vandringar (stadsvandring.io) först, ev. partnervandringar efter.
+  const [ownTours,setOwnTours]=useState([]);
   const [tourPartners,setTourPartners]=useState([]);
   const [openTour,setOpenTour]=useState(null);
   useEffect(()=>{
     let on=true;
-    setTourPartners([]);
+    setOwnTours([]);setTourPartners([]);
+    fetchToursForPlace(place.id).then(ts=>{if(on)setOwnTours(ts||[]);}).catch(()=>{});
     fetchTourPartnersForPlace(place.id).then(tp=>{if(on)setTourPartners(tp||[]);}).catch(()=>{});
     return ()=>{on=false;};
   },[place.id]);
 
-  const tourSection=tourPartners.length>0&&(
+  const nTours=ownTours.length+tourPartners.length;
+  const tourSection=nTours>0&&(
     <div style={{background:"linear-gradient(135deg,rgba(124,58,237,0.08),rgba(124,58,237,0.02))",border:"1px solid rgba(124,58,237,0.25)",borderRadius:14,padding:"16px",marginBottom:20}}>
       <div style={{fontSize:12,fontWeight:800,color:"#a78bfa",marginBottom:3}}>🚶 Den här platsen ingår i en vandring</div>
       <div style={{fontSize:12,color:"var(--tx3)",lineHeight:1.6,marginBottom:12}}>
-        Vill du höra historien berättas på plats? {place.name} är ett stopp på {tourPartners.length===1?"den här vandringen":"de här vandringarna"}.
+        Vill du uppleva historien på plats? {place.name} är ett stopp på {nTours===1?"den här vandringen":"de här vandringarna"} — gå den med mobilen som guide.
       </div>
+      {ownTours.map((t,i)=>(
+        <a key={t.id} href={t.url} target="_blank" rel="noreferrer" style={{display:"flex",gap:10,alignItems:"center",background:"var(--card)",border:"1px solid var(--b)",borderRadius:10,padding:"11px 12px",marginBottom:(i<ownTours.length-1||tourPartners.length>0)?7:0,textDecoration:"none"}}>
+          {t.img
+            ?<img src={t.img} alt="" style={{width:38,height:38,borderRadius:9,objectFit:"cover",flexShrink:0}}/>
+            :<span style={{width:38,height:38,borderRadius:9,background:"var(--bg3)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>{t.kind==="stad"?"🚶":"👻"}</span>}
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:12,fontWeight:700,color:"var(--tx)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.name}</div>
+            <div style={{fontSize:10,color:"var(--tx3)"}}>
+              {t.kind==="stad"?"Digital stadsvandring":"Digital spökvandring"}{t.city?` · ${t.city}`:""}{t.duration_min?` · ${t.duration_min} min`:""}{t.tour_note?` · ${t.tour_note}`:""}
+            </div>
+          </div>
+          <div style={{fontSize:11,fontWeight:600,color:"#a78bfa",flexShrink:0}}>Gå vandringen →</div>
+        </a>
+      ))}
       {tourPartners.map((tp,i)=>(
         <button key={tp.id} onClick={()=>setOpenTour(tp)} style={{display:"flex",gap:10,alignItems:"center",width:"100%",background:"var(--card)",border:"1px solid var(--b)",borderRadius:10,padding:"11px 12px",marginBottom:i<tourPartners.length-1?7:0,cursor:"pointer",textAlign:"left"}}>
           {tp.avatar
@@ -1154,6 +1172,11 @@ function Reader({place,allPlaces,isPro,onClose,onNavigate,upgrade,roadtrip,setRo
           <div style={{fontSize:11,fontWeight:600,color:"#a78bfa",flexShrink:0}}>Se vandringen →</div>
         </button>
       ))}
+      {ownTours.length>0&&(
+        <div style={{fontSize:10,color:"var(--tx4)",marginTop:9,lineHeight:1.5}}>
+          Vandringen går i vår app <strong style={{color:"var(--tx3)"}}>stadsvandring.io</strong> — karta, berättelser och quiz direkt i mobilen.
+        </div>
+      )}
     </div>
   );
 
@@ -2060,6 +2083,179 @@ const SCRAPER_JOBS = [
   {id:"j4",name:"USA — Paranormal Hotspots",region:"USA/Kanada",status:"scheduled",last:"2026-04-26 03:00",found:0,queue:0,progress:0},
 ];
 
+// ── ADMIN: EGNA VANDRINGAR (stadsvandring.io) ────────────────
+// Lägg upp dina digitala spök-/stadsvandringar och koppla vilka platser
+// som ingår — platssidorna länkar då till vandringen i appen.
+function AdminToursTab({ allPlaces }) {
+  const [tours, setTours] = useState(null);
+  const [editing, setEditing] = useState(null);   // tour-objekt (nytt = utan id i DB)
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  // Formulärfält
+  const [placeIds, setPlaceIds] = useState([]);
+  const [placeSearch, setPlaceSearch] = useState("");
+
+  async function reload() {
+    const t = await fetchTours({ includeInactive: true });
+    setTours(t);
+  }
+  useEffect(() => { reload().catch(()=>setTours([])); }, []);
+
+  async function openEdit(tour) {
+    setErr("");
+    setPlaceSearch("");
+    if (tour) {
+      setEditing({ ...tour });
+      setPlaceIds(await fetchTourPlaceIds(tour.id).catch(()=>[]));
+    } else {
+      setEditing({ id:"", name:"", kind:"spok", city:"", url:"", teaser:"", price_from:null, duration_min:null, img:"", active:true, sort_order:0, _new:true });
+      setPlaceIds([]);
+    }
+  }
+
+  async function save() {
+    if (!editing.name.trim()) { setErr("Namn krävs"); return; }
+    if (!editing.url.trim()) { setErr("Länk till vandringen i stadsvandring.io krävs"); return; }
+    const id = (editing.id || editing.name).trim().toLowerCase()
+      .replace(/[åä]/g,"a").replace(/ö/g,"o").replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
+    setBusy(true); setErr("");
+    try {
+      const { _new, ...row } = editing;
+      await upsertTour({ ...row, id, name: editing.name.trim(), url: editing.url.trim(),
+        city: editing.city.trim(), teaser: editing.teaser.trim(), img: editing.img.trim(),
+        price_from: editing.price_from ? parseInt(editing.price_from,10) : null,
+        duration_min: editing.duration_min ? parseInt(editing.duration_min,10) : null });
+      await setTourPlaces(id, placeIds);
+      await reload();
+      setEditing(null);
+    } catch(e) { setErr("Kunde inte spara: " + e.message); }
+    finally { setBusy(false); }
+  }
+
+  async function remove(tour) {
+    if (!confirm(`Ta bort "${tour.name}"? Platskopplingarna försvinner också.`)) return;
+    try { await deleteTour(tour.id); await reload(); }
+    catch(e) { alert("Kunde inte ta bort: " + e.message); }
+  }
+
+  const q = placeSearch.trim().toLowerCase();
+  const placeMatches = q
+    ? allPlaces.filter(p => !placeIds.includes(p.id) &&
+        (p.name.toLowerCase().includes(q) || (p.region||"").toLowerCase().includes(q))).slice(0,6)
+    : [];
+
+  const inp = {width:"100%",background:"var(--bg3)",border:"1px solid var(--b)",borderRadius:9,padding:"10px 12px",fontSize:13,color:"var(--tx)",marginBottom:9};
+  const lbl = {fontSize:11,fontWeight:600,color:"var(--tx3)",marginBottom:4,marginTop:4,display:"block"};
+
+  return (
+    <div style={{maxWidth:640}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,gap:10}}>
+        <div>
+          <div style={{fontSize:13,fontWeight:700,color:"var(--tx)"}}>🚶 Dina digitala vandringar</div>
+          <div style={{fontSize:11,color:"var(--tx3)"}}>Vandringar i stadsvandring.io — kopplade platser länkar hit från sina sidor.</div>
+        </div>
+        <Btn ch="+ Ny vandring" v="p" sz="sm" onClick={()=>openEdit(null)}/>
+      </div>
+
+      {tours===null ? (
+        <div style={{fontSize:12,color:"var(--tx3)",padding:20,textAlign:"center"}}>Laddar…</div>
+      ) : tours.length===0 ? (
+        <div style={{background:"var(--card)",border:"1px dashed var(--b2)",borderRadius:12,padding:"20px 16px",textAlign:"center"}}>
+          <div style={{fontSize:30,marginBottom:8}}>🚶</div>
+          <div style={{fontSize:12,fontWeight:700,color:"var(--tx)",marginBottom:4}}>Inga vandringar upplagda än</div>
+          <div style={{fontSize:11,color:"var(--tx3)",marginBottom:12,lineHeight:1.55}}>Lägg upp din första spök- eller stadsvandring och koppla platserna som ingår.</div>
+          <Btn ch="+ Lägg upp din första vandring" v="p" sz="sm" onClick={()=>openEdit(null)}/>
+        </div>
+      ) : (
+        <div style={{display:"grid",gap:9}}>
+          {tours.map(t=>(
+            <div key={t.id} style={{background:"var(--card)",border:"1px solid var(--b)",borderRadius:12,padding:"12px 14px",display:"flex",gap:10,alignItems:"center",opacity:t.active?1:0.55}}>
+              <span style={{fontSize:22,flexShrink:0}}>{t.kind==="stad"?"🚶":"👻"}</span>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:12,fontWeight:700,color:"var(--tx)"}}>{t.name}{!t.active&&<span style={{fontSize:9,color:"#fbbf24",marginLeft:6}}>PAUSAD</span>}</div>
+                <div style={{fontSize:10,color:"var(--tx3)"}}>{t.kind==="stad"?"Stadsvandring":"Spökvandring"}{t.city?` · ${t.city}`:""} · <a href={t.url} target="_blank" rel="noreferrer" style={{color:"#a78bfa"}}>länk ↗</a></div>
+              </div>
+              <Btn ch="Redigera" v="ghost" sz="sm" onClick={()=>openEdit(t)}/>
+              <button onClick={()=>remove(t)} style={{background:"none",border:"none",color:"#f87171",cursor:"pointer",fontSize:14,padding:4}} title="Ta bort">🗑</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {editing&&(
+        <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)setEditing(null);}}>
+          <div className="modal-sheet au" style={{maxHeight:"92vh",overflowY:"auto"}}>
+            <div className="modal-handle"/>
+            <button onClick={()=>setEditing(null)} style={{position:"absolute",top:14,right:14,background:"none",border:"none",color:"var(--tx3)",cursor:"pointer",fontSize:20,padding:4}}>✕</button>
+            <h2 style={{fontSize:17,fontWeight:800,color:"var(--tx)",marginBottom:12}}>{editing._new?"🚶 Ny vandring":"🚶 Redigera vandring"}</h2>
+
+            <label style={lbl}>Typ</label>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7,marginBottom:9}}>
+              {[["spok","👻 Spökvandring"],["stad","🚶 Stadsvandring"]].map(([k,label])=>(
+                <button key={k} onClick={()=>setEditing(ed=>({...ed,kind:k}))} style={{background:editing.kind===k?"rgba(124,58,237,0.18)":"var(--bg3)",border:`1px solid ${editing.kind===k?"#7c3aed":"var(--b)"}`,borderRadius:9,padding:"10px",fontSize:12,fontWeight:600,color:editing.kind===k?"#a78bfa":"var(--tx2)",cursor:"pointer"}}>{label}</button>
+              ))}
+            </div>
+
+            <label style={lbl}>Namn *</label>
+            <input style={inp} value={editing.name} onChange={e=>setEditing(ed=>({...ed,name:e.target.value}))} placeholder="t.ex. Spökvandring Skänninge"/>
+
+            <label style={lbl}>Länk till vandringen i stadsvandring.io *</label>
+            <input style={inp} value={editing.url} onChange={e=>setEditing(ed=>({...ed,url:e.target.value}))} placeholder="https://stadsvandring.io/..."/>
+
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:9}}>
+              <div><label style={lbl}>Stad</label><input style={inp} value={editing.city||""} onChange={e=>setEditing(ed=>({...ed,city:e.target.value}))} placeholder="Skänninge"/></div>
+              <div><label style={lbl}>Längd (min)</label><input style={inp} type="number" value={editing.duration_min||""} onChange={e=>setEditing(ed=>({...ed,duration_min:e.target.value}))} placeholder="60"/></div>
+              <div><label style={lbl}>Pris fr. (kr)</label><input style={inp} type="number" value={editing.price_from||""} onChange={e=>setEditing(ed=>({...ed,price_from:e.target.value}))} placeholder="tomt = gratis"/></div>
+            </div>
+
+            <label style={lbl}>Kort beskrivning</label>
+            <textarea style={{...inp,minHeight:60,resize:"vertical"}} value={editing.teaser||""} onChange={e=>setEditing(ed=>({...ed,teaser:e.target.value}))} placeholder="En kuslig vandring genom stadens mörka historia…"/>
+
+            <label style={lbl}>Bild-URL (valfri)</label>
+            <input style={inp} value={editing.img||""} onChange={e=>setEditing(ed=>({...ed,img:e.target.value}))} placeholder="https://..."/>
+
+            <label style={lbl}>Platser på Spökkartan som ingår</label>
+            <p style={{fontSize:10,color:"var(--tx4)",lineHeight:1.55,margin:"0 0 8px"}}>Varje kopplad plats länkar till vandringen från sin sida.</p>
+            {placeIds.length>0&&(
+              <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>
+                {placeIds.map(id=>{
+                  const p=allPlaces.find(x=>x.id===id);
+                  return (
+                    <span key={id} style={{background:"rgba(124,58,237,0.15)",border:"1px solid #7c3aed",borderRadius:14,padding:"4px 10px",fontSize:11,fontWeight:600,color:"#a78bfa",display:"flex",gap:5,alignItems:"center"}}>
+                      {p?.name||id}
+                      <button onClick={()=>setPlaceIds(ids=>ids.filter(x=>x!==id))} style={{background:"none",border:"none",color:"#a78bfa",cursor:"pointer",fontSize:12,padding:0}}>✕</button>
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+            <input style={inp} value={placeSearch} onChange={e=>setPlaceSearch(e.target.value)} placeholder="Sök plats — t.ex. Skänninge…"/>
+            {placeMatches.length>0&&(
+              <div style={{border:"1px solid var(--b)",borderRadius:9,marginTop:-6,marginBottom:10,overflow:"hidden"}}>
+                {placeMatches.map(p=>(
+                  <button key={p.id} onClick={()=>{setPlaceIds(ids=>[...ids,p.id]);setPlaceSearch("");}} style={{display:"flex",gap:8,alignItems:"center",width:"100%",background:"var(--bg3)",border:"none",borderBottom:"1px solid var(--b)",padding:"9px 12px",fontSize:12,color:"var(--tx)",cursor:"pointer",textAlign:"left"}}>
+                    <span>{TYPE_ICON[p.type]||"👻"}</span>
+                    <span style={{flex:1}}>{p.name}</span>
+                    <span style={{fontSize:10,color:"var(--tx4)"}}>{p.region}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <label style={{...lbl,display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}>
+              <input type="checkbox" checked={editing.active} onChange={e=>setEditing(ed=>({...ed,active:e.target.checked}))}/>
+              Aktiv (visas på platssidor och i shopen)
+            </label>
+
+            {err&&<div style={{background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.3)",borderRadius:8,padding:"8px 12px",fontSize:12,color:"#ef4444",marginTop:8,marginBottom:4}}>{err}</div>}
+            <Btn ch={busy?"Sparar…":"Spara vandringen"} v="p" full onClick={save} disabled={busy} style={{marginTop:10}}/>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AdminDash({allPlaces,setAllPlaces,user,onLogout}) {
   const [tab,setTab]=useState("overview");
   const [search,setSearch]=useState("");
@@ -2132,7 +2328,7 @@ function AdminDash({allPlaces,setAllPlaces,user,onLogout}) {
     setInstruction("");
   }
 
-  const TABS=[["overview","📊","Översikt"],["places","📍","Platser"],["suggestions","📥","Förslag"],["scraper","🔍","Scraper"],["members","💎","Pro"],["users","👤","Användare"],["settings","⚙️","Inställningar"]];
+  const TABS=[["overview","📊","Översikt"],["places","📍","Platser"],["tours","🚶","Vandringar"],["suggestions","📥","Förslag"],["scraper","🔍","Scraper"],["members","💎","Pro"],["users","👤","Användare"],["settings","⚙️","Inställningar"]];
 
   return(
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
@@ -2270,6 +2466,9 @@ function AdminDash({allPlaces,setAllPlaces,user,onLogout}) {
         )}
 
         {/* ── SUGGESTIONS INBOX ── */}
+        {/* ── VANDRINGAR (stadsvandring.io) ── */}
+        {tab==="tours"&&<AdminToursTab allPlaces={allPlaces}/>}
+
         {tab==="suggestions"&&(
           <div>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:8}}>
@@ -2943,26 +3142,33 @@ function PartnerCard({ p, onClick }) {
   );
 }
 
-// ── VANDRINGAR I SHOPEN (endast egna partners) ───────────────
+// ── VANDRINGAR I SHOPEN ──────────────────────────────────────
+// Grantigos egna digitala vandringar (stadsvandring.io) först, ev.
+// partnervandringar efter. Inga externa guideplattformar.
 function TourPartnersShopSection({ user, allPlaces, onOpenPlace, onBrowsePartners, onBecomePartner }) {
-  const [tours, setTours] = useState(null);
+  const [ownTours, setOwnTours] = useState(null);
+  const [partnerTours, setPartnerTours] = useState(null);
   const [openTour, setOpenTour] = useState(null);
 
   useEffect(() => {
-    fetchPartners({ type: "tour" }).then(p => setTours(p || [])).catch(()=>setTours([]));
+    fetchTours().then(t => setOwnTours(t || [])).catch(()=>setOwnTours([]));
+    fetchPartners({ type: "tour" }).then(p => setPartnerTours(p || [])).catch(()=>setPartnerTours([]));
   }, []);
+
+  const loading = ownTours === null || partnerTours === null;
+  const empty = !loading && ownTours.length === 0 && partnerTours.length === 0;
 
   return (
     <>
       <div style={{fontSize:12,fontWeight:700,color:"var(--tx)",marginBottom:8}}>🚶 Spök- & stadsvandringar</div>
-      {tours === null ? (
+      {loading ? (
         <div style={{fontSize:12,color:"var(--tx3)",padding:"14px 0"}}>Laddar vandringar…</div>
-      ) : tours.length === 0 ? (
+      ) : empty ? (
         <div style={{background:"var(--card)",border:"1px dashed var(--b2)",borderRadius:12,padding:"16px",textAlign:"center",marginBottom:9}}>
           <div style={{fontSize:28,marginBottom:6}}>🚶</div>
           <div style={{fontSize:12,fontWeight:700,color:"var(--tx)",marginBottom:4}}>Snart hittar du vandringar här</div>
           <div style={{fontSize:11,color:"var(--tx3)",lineHeight:1.55,marginBottom:12}}>
-            Vi listar bara spök- och stadsvandringar från Spökkartans egna partners — inga externa guideplattformar.
+            Vi listar bara våra egna digitala vandringar och Spökkartans partners — inga externa guideplattformar.
           </div>
           <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}>
             <Btn ch="🌟 Se alla partners" v="ghost" sz="sm" onClick={onBrowsePartners}/>
@@ -2971,7 +3177,27 @@ function TourPartnersShopSection({ user, allPlaces, onOpenPlace, onBrowsePartner
         </div>
       ) : (
         <div style={{display:"grid",gap:10,marginBottom:9}}>
-          {tours.map(p => <PartnerCard key={p.id} p={p} onClick={()=>setOpenTour(p)}/>)}
+          {ownTours.map(t => (
+            <a key={t.id} href={t.url} target="_blank" rel="noreferrer" style={{background:"var(--card)",border:"1px solid var(--b)",borderRadius:12,padding:"13px",display:"flex",gap:12,alignItems:"center",textDecoration:"none"}}>
+              {t.img
+                ?<img src={t.img} alt="" style={{width:54,height:54,borderRadius:12,objectFit:"cover",flexShrink:0}}/>
+                :<div style={{width:54,height:54,borderRadius:12,background:"var(--bg3)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0}}>{t.kind==="stad"?"🚶":"👻"}</div>}
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:13,fontWeight:700,color:"var(--tx)",marginBottom:2}}>{t.name}</div>
+                <div style={{fontSize:10,color:"var(--tx3)",marginBottom:3}}>
+                  {t.kind==="stad"?"Digital stadsvandring":"Digital spökvandring"}{t.city?` · ${t.city}`:""}{t.duration_min?` · ${t.duration_min} min`:""}{t.price_from?` · fr. ${t.price_from} kr`:""}
+                </div>
+                {t.teaser && <div style={{fontSize:11,color:"var(--tx2)",lineHeight:1.5,overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>{t.teaser}</div>}
+              </div>
+              <div style={{fontSize:11,fontWeight:700,color:"#a78bfa",flexShrink:0}}>Gå vandringen →</div>
+            </a>
+          ))}
+          {ownTours.length > 0 && (
+            <div style={{fontSize:10,color:"var(--tx4)",lineHeight:1.5,marginTop:-3}}>
+              Våra vandringar går i appen <strong style={{color:"var(--tx3)"}}>stadsvandring.io</strong> — karta, berättelser och quiz direkt i mobilen.
+            </div>
+          )}
+          {partnerTours.map(p => <PartnerCard key={p.id} p={p} onClick={()=>setOpenTour(p)}/>)}
         </div>
       )}
       {openTour && <PartnerDetailModal partner={openTour} user={user} onClose={()=>setOpenTour(null)} allPlaces={allPlaces} onOpenPlace={p=>{setOpenTour(null);onOpenPlace?.(p);}}/>}

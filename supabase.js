@@ -241,6 +241,62 @@ export async function fetchPartnerServices(partnerId) {
   return data || [];
 }
 
+// ── EGNA VANDRINGAR (Grantigos digitala vandringar, stadsvandring.io) ──
+// Platser som ingår i en av våra egna spök-/stadsvandringar länkar till
+// vandringen i appen. Hanteras i adminpanelen (fliken Vandringar).
+
+export async function fetchTours({ includeInactive = false } = {}) {
+  let q = supabase.from('tours').select('*').order('sort_order', { ascending: true }).order('name', { ascending: true });
+  if (!includeInactive) q = q.eq('active', true);
+  const { data, error } = await q;
+  if (error) { console.error('[Spokkartan] fetchTours:', error.message); return []; }
+  return data || [];
+}
+
+export async function fetchToursForPlace(placeId) {
+  const { data, error } = await supabase
+    .from('tour_places')
+    .select('note, tour:tours!inner(*)')
+    .eq('place_id', placeId)
+    .eq('tour.active', true);
+  if (error) { console.error('[Spokkartan] fetchToursForPlace:', error.message); return []; }
+  return (data || [])
+    .filter(r => r.tour)
+    .map(r => ({ ...r.tour, tour_note: r.note || '' }));
+}
+
+export async function upsertTour(tour) {
+  const { data, error } = await supabase.from('tours').upsert(tour).select().maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteTour(id) {
+  const { error } = await supabase.from('tours').delete().eq('id', id);
+  if (error) throw error;
+}
+
+export async function fetchTourPlaceIds(tourId) {
+  const { data, error } = await supabase
+    .from('tour_places')
+    .select('place_id')
+    .eq('tour_id', tourId);
+  if (error) { console.error('[Spokkartan] fetchTourPlaceIds:', error.message); return []; }
+  return (data || []).map(r => r.place_id);
+}
+
+export async function setTourPlaces(tourId, placeIds = []) {
+  const { error: delError } = await supabase
+    .from('tour_places')
+    .delete()
+    .eq('tour_id', tourId);
+  if (delError) throw delError;
+  if (!placeIds.length) return;
+  const rows = placeIds.map(place_id => ({ tour_id: tourId, place_id }));
+  const { error } = await supabase.from('tour_places').insert(rows);
+  if (error) throw error;
+}
+
 // ── PARTNER ↔ PLATSER (vandringar som besöker platser) ─────
 // En plats som ingår i en spök-/stadsvandring länkar till vandringen,
 // och vandringens profil kan visa sina stopp.
