@@ -82,10 +82,9 @@ const HAUNTED_HOTELS = [
   {name:"Dragsholm Slot",region:"Sjælland",country:"Danmark",price:"fr. 2 400 kr/natt",scary:5,url:"https://www.booking.com/searchresults.en.html?ss=Dragsholm+Slot",partner:"Booking.com"},
   {name:"Dalen Hotel",region:"Telemark",country:"Norge",price:"fr. 1 500 kr/natt",scary:4,url:"https://www.booking.com/searchresults.sv.html?ss=Dalen+Hotel+Norway",partner:"Booking.com"},
 ];
-// Vandringar tipsas enbart via Grantigos egna digitala vandringar i
-// stadsvandring.io-appen (+ ev. egna partners) — inga länkar till externa
-// guideplattformar som GetYourGuide/TripAdvisor.
-const STADSVANDRING_URL = "https://stadsvandring.io/";
+// Vandringar (stadsvandring.io) är PRO-innehåll: en hemsökt plats som ingår
+// i en vandring visar det på sin platssida — länken ligger bakom betalväggen.
+// Inga länkar till externa guideplattformar som GetYourGuide/TripAdvisor.
 const BASE_HUNTERS = [
   {
     id:"h1",name:"Matti Hietasaari",verified:true,speciality:"EMF & ITC",since:"2015",places:47,
@@ -1232,15 +1231,18 @@ function Reader({place,allPlaces,isPro,onClose,onNavigate,upgrade,roadtrip,setRo
     return ()=>{on=false;};
   },[place.id]);
 
+  // Vandringarna är PRO-innehåll — länken till appen ligger bakom betalväggen.
+  const canWalk=TIER_RANK[tier||"free"]>=TIER_RANK.pro;
   const nTours=ownTours.length+tourPartners.length;
   const tourSection=nTours>0&&(
     <div style={{background:"linear-gradient(135deg,rgba(124,58,237,0.08),rgba(124,58,237,0.02))",border:"1px solid rgba(124,58,237,0.25)",borderRadius:14,padding:"16px",marginBottom:20}}>
       <div style={{fontSize:12,fontWeight:800,color:"#a78bfa",marginBottom:3}}>🚶 Den här platsen ingår i en vandring</div>
       <div style={{fontSize:12,color:"var(--tx3)",lineHeight:1.6,marginBottom:12}}>
-        Vill du uppleva historien på plats? {place.name} är ett stopp på {nTours===1?"den här vandringen":"de här vandringarna"} — gå den med mobilen som guide.
+        {place.name} är ett stopp på {nTours===1?"en guidad vandring":"guidade vandringar"} — upplev historien på plats med mobilen som guide.
       </div>
-      {ownTours.map((t,i)=>(
-        <a key={t.id} href={t.url} target="_blank" rel="noreferrer" style={{display:"flex",gap:10,alignItems:"center",background:"var(--card)",border:"1px solid var(--b)",borderRadius:10,padding:"11px 12px",marginBottom:(i<ownTours.length-1||tourPartners.length>0)?7:0,textDecoration:"none"}}>
+      {ownTours.map((t,i)=>{
+        const rowStyle={display:"flex",gap:10,alignItems:"center",width:"100%",background:"var(--card)",border:"1px solid var(--b)",borderRadius:10,padding:"11px 12px",marginBottom:(i<ownTours.length-1||tourPartners.length>0)?7:0,textDecoration:"none",cursor:"pointer",textAlign:"left"};
+        const inner=(<>
           {t.img
             ?<img src={t.img} alt="" style={{width:38,height:38,borderRadius:9,objectFit:"cover",flexShrink:0}}/>
             :<span style={{width:38,height:38,borderRadius:9,background:"var(--bg3)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>{t.kind==="stad"?"🚶":"👻"}</span>}
@@ -1250,9 +1252,12 @@ function Reader({place,allPlaces,isPro,onClose,onNavigate,upgrade,roadtrip,setRo
               {t.kind==="stad"?"Digital stadsvandring":"Digital spökvandring"}{t.city?` · ${t.city}`:""}{t.duration_min?` · ${t.duration_min} min`:""}{t.tour_note?` · ${t.tour_note}`:""}
             </div>
           </div>
-          <div style={{fontSize:11,fontWeight:600,color:"#a78bfa",flexShrink:0}}>Gå vandringen →</div>
-        </a>
-      ))}
+          <div style={{fontSize:11,fontWeight:600,color:canWalk?"#a78bfa":"#d4af37",flexShrink:0}}>{canWalk?"Gå vandringen →":"🔒 Lås upp →"}</div>
+        </>);
+        return canWalk
+          ?<a key={t.id} href={t.url} target="_blank" rel="noreferrer" style={rowStyle}>{inner}</a>
+          :<button key={t.id} onClick={upgrade} style={rowStyle}>{inner}</button>;
+      })}
       {tourPartners.map((tp,i)=>(
         <button key={tp.id} onClick={()=>setOpenTour(tp)} style={{display:"flex",gap:10,alignItems:"center",width:"100%",background:"var(--card)",border:"1px solid var(--b)",borderRadius:10,padding:"11px 12px",marginBottom:i<tourPartners.length-1?7:0,cursor:"pointer",textAlign:"left"}}>
           {tp.avatar
@@ -1271,7 +1276,9 @@ function Reader({place,allPlaces,isPro,onClose,onNavigate,upgrade,roadtrip,setRo
       ))}
       {ownTours.length>0&&(
         <div style={{fontSize:10,color:"var(--tx4)",marginTop:9,lineHeight:1.5}}>
-          Vandringen går i vår app <strong style={{color:"var(--tx3)"}}>stadsvandring.io</strong> — karta, berättelser och quiz direkt i mobilen.
+          {canWalk
+            ?<>Vandringen öppnas i vår app <strong style={{color:"var(--tx3)"}}>stadsvandring.io</strong> — karta, berättelser och quiz direkt i mobilen.</>
+            :<>🔒 Vandringarna ingår i <strong style={{color:"#d4af37"}}>Ghost Hunter PRO</strong> — prova för 19 kr första månaden.</>}
         </div>
       )}
     </div>
@@ -1450,10 +1457,8 @@ function Reader({place,allPlaces,isPro,onClose,onNavigate,upgrade,roadtrip,setRo
                   {myReview?"Uppdatera din upplevelse":"Dela din upplevelse"}
                 </button>
 
-                {/* Vandringar som besöker platsen — annars tips om appen (svenska platser) */}
-                {tourSection || (place.country==="Sverige"&&(
-                  <div style={{marginBottom:20}}><StadsvandringPromo/></div>
-                ))}
+                {/* Vandringar som besöker platsen */}
+                {tourSection}
 
                 {/* Booking — trevligt tips om platsen faktiskt går att boka */}
                 {place.bookable&&(place.booking_url||place.bookingUrl)&&(
@@ -3241,65 +3246,6 @@ function PartnerCard({ p, onClick }) {
   );
 }
 
-// ── STADSVANDRING.IO-TIPS ────────────────────────────────────
-// Cross-promo för Grantigos egen app med digitala spök- & stadsvandringar.
-// Kräver ingen data — vandringarna finns redan i appen.
-function StadsvandringPromo() {
-  return (
-    <a href={STADSVANDRING_URL} target="_blank" rel="noreferrer" style={{display:"flex",gap:12,alignItems:"center",background:"linear-gradient(135deg,rgba(124,58,237,0.14),rgba(124,58,237,0.04))",border:"1px solid rgba(124,58,237,0.35)",borderRadius:14,padding:"14px 16px",textDecoration:"none"}}>
-      <div style={{fontSize:30,flexShrink:0}}>🚶</div>
-      <div style={{flex:1,minWidth:0}}>
-        <div style={{fontSize:13,fontWeight:800,color:"var(--tx)",marginBottom:3}}>Gå en digital spök- eller stadsvandring</div>
-        <div style={{fontSize:11,color:"var(--tx2)",lineHeight:1.55}}>
-          Våra vandringar finns i appen <strong style={{color:"#a78bfa"}}>stadsvandring.io</strong> — karta, berättelser, stämplar och quiz direkt i mobilen. Mjölby, Skänninge & Bjälbo.
-        </div>
-      </div>
-      <div style={{fontSize:11,fontWeight:700,color:"#a78bfa",flexShrink:0}}>Till appen →</div>
-    </a>
-  );
-}
-
-// ── VANDRINGAR I SHOPEN ──────────────────────────────────────
-// Grantigos egna digitala vandringar (stadsvandring.io) först, ev.
-// partnervandringar efter. Inga externa guideplattformar.
-function TourPartnersShopSection({ user, allPlaces, onOpenPlace, onBrowsePartners, onBecomePartner }) {
-  const [ownTours, setOwnTours] = useState(null);
-  const [partnerTours, setPartnerTours] = useState(null);
-  const [openTour, setOpenTour] = useState(null);
-
-  useEffect(() => {
-    fetchTours().then(t => setOwnTours(t || [])).catch(()=>setOwnTours([]));
-    fetchPartners({ type: "tour" }).then(p => setPartnerTours(p || [])).catch(()=>setPartnerTours([]));
-  }, []);
-
-  return (
-    <>
-      <div style={{fontSize:12,fontWeight:700,color:"var(--tx)",marginBottom:8}}>🚶 Spök- & stadsvandringar</div>
-      <div style={{display:"grid",gap:10,marginBottom:9}}>
-        {/* Appen tipsas alltid — vandringarna finns redan där */}
-        <StadsvandringPromo/>
-        {(ownTours||[]).map(t => (
-            <a key={t.id} href={t.url} target="_blank" rel="noreferrer" style={{background:"var(--card)",border:"1px solid var(--b)",borderRadius:12,padding:"13px",display:"flex",gap:12,alignItems:"center",textDecoration:"none"}}>
-              {t.img
-                ?<img src={t.img} alt="" style={{width:54,height:54,borderRadius:12,objectFit:"cover",flexShrink:0}}/>
-                :<div style={{width:54,height:54,borderRadius:12,background:"var(--bg3)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0}}>{t.kind==="stad"?"🚶":"👻"}</div>}
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:13,fontWeight:700,color:"var(--tx)",marginBottom:2}}>{t.name}</div>
-                <div style={{fontSize:10,color:"var(--tx3)",marginBottom:3}}>
-                  {t.kind==="stad"?"Digital stadsvandring":"Digital spökvandring"}{t.city?` · ${t.city}`:""}{t.duration_min?` · ${t.duration_min} min`:""}{t.price_from?` · fr. ${t.price_from} kr`:""}
-                </div>
-                {t.teaser && <div style={{fontSize:11,color:"var(--tx2)",lineHeight:1.5,overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>{t.teaser}</div>}
-              </div>
-              <div style={{fontSize:11,fontWeight:700,color:"#a78bfa",flexShrink:0}}>Gå vandringen →</div>
-            </a>
-          ))}
-        {(partnerTours||[]).map(p => <PartnerCard key={p.id} p={p} onClick={()=>setOpenTour(p)}/>)}
-      </div>
-      {openTour && <PartnerDetailModal partner={openTour} user={user} onClose={()=>setOpenTour(null)} allPlaces={allPlaces} onOpenPlace={p=>{setOpenTour(null);onOpenPlace?.(p);}}/>}
-    </>
-  );
-}
-
 // ── PARTNER-DETALJVY (modal) ─────────────────────────────────
 function PartnerDetailModal({ partner, user, onClose, allPlaces = [], onOpenPlace }) {
   const [packages, setPackages] = useState([]);
@@ -4452,10 +4398,6 @@ export default function App() {
                 </div>
               ))}
             </div>
-            {/* Digitala vandringar — vår egen app stadsvandring.io */}
-            <div style={{padding:"0 16px 14px"}}>
-              <StadsvandringPromo/>
-            </div>
             {/* Haunted hotels */}
             <div style={{padding:"0 16px 80px"}}>
               <div style={{fontSize:13,fontWeight:700,color:"var(--tx)",marginBottom:10}}>🏨 Hemsökta Hotell</div>
@@ -4505,14 +4447,7 @@ export default function App() {
         {view==="shop"&&(
           <div style={{flex:1,overflowY:"auto",padding:"14px 16px",paddingBottom:80}}>
             <h2 style={{fontSize:15,fontWeight:800,color:"var(--tx)",marginBottom:4}}>🛒 Shop</h2>
-            <p style={{fontSize:11,color:"var(--tx3)",marginBottom:14}}>Vandringar från Spökkartans egna partners · Spökjaktutrustning via Amazon Associates</p>
-            <TourPartnersShopSection
-              user={user}
-              allPlaces={allPlacesMut}
-              onOpenPlace={p=>setReading(p)}
-              onBrowsePartners={()=>setView("partners")}
-              onBecomePartner={()=>user?setShowBecomePartner(true):setAuth("login")}
-            />
+            <p style={{fontSize:11,color:"var(--tx3)",marginBottom:14}}>Spökjaktutrustning via Amazon Associates</p>
             <div style={{fontSize:12,fontWeight:700,color:"var(--tx)",marginTop:16,marginBottom:8}}>🔦 Spökjaktutrustning (Amazon)</div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9}}>
               {[["📡","EMF-mätare","emf+detektor"],["📷","IR-kameror","infraröd+kamera+nattseende"],["🎙️","Röstinspelare","digital+röstinspelare+EVP"],["🔦","UV-ficklampor","uv+ficklampa+395nm"],["🌡️","Termometrar","infraröd+termometer"],["📚","Spöklitteratur","hemsökta+platser+Sverige+bok"]].map(([icon,name,q])=>(
