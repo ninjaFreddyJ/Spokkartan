@@ -4326,6 +4326,11 @@ export default function App() {
         {/* HOME */}
         {view==="home"&&(
           <div style={{flex:1,overflowY:"auto"}}>
+            {/* Hero — nylanseringsbild (klick → kartan) */}
+            <div onClick={()=>setView("map")} role="button" aria-label="Utforska Spökkartan" style={{position:"relative",cursor:"pointer",lineHeight:0}}>
+              <img src="/hero-nylansering.jpg" alt="Nylansering av Svenska Spökkartan — tagga en vän och ge dig ut!" loading="eager" style={{width:"100%",display:"block"}} onError={e=>{e.currentTarget.parentElement.style.display="none";}}/>
+              <div style={{position:"absolute",inset:0,background:"linear-gradient(to bottom,transparent 78%,#08070e 100%)"}}/>
+            </div>
             <div style={{background:"linear-gradient(160deg,#110c26,#08070e)",padding:"24px 16px 18px",borderBottom:"1px solid var(--b)"}}>
               <div style={{fontSize:10,fontWeight:700,color:"#a78bfa",letterSpacing:3,textTransform:"uppercase",marginBottom:7}}>👻 Spökkartan</div>
               <h1 style={{fontSize:"clamp(22px,6vw,32px)",fontWeight:800,color:"var(--tx)",lineHeight:1.15,marginBottom:7}}>{(()=>{const w=t("hero_title").split(" "); return <>{w.slice(0,-2).join(" ")} <span className="gt">{w.slice(-2).join(" ")}</span></>;})()}</h1>
