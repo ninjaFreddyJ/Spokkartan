@@ -252,6 +252,33 @@ select option{background:var(--card2)}
   border:2px solid #fff;
   box-shadow:0 2px 4px rgba(0,0,0,0.3);
 }
+/* Låsta PRO-platser — svarta nålar med guldring (promotar Spökkartan PRO) */
+.sp-pin.locked .sp-pin-body{
+  background:linear-gradient(160deg,#1b1626,#050308);
+  box-shadow:inset -2px -3px 6px rgba(0,0,0,0.5),0 0 0 2px #d4af37,0 3px 8px rgba(0,0,0,0.5);
+}
+.sp-pin.locked .sp-pin-emoji{filter:grayscale(1) brightness(1.6)}
+
+/* Stadsbubblor — klicka en stad för att zooma in och se dess platser */
+.sp-cluster{
+  position:relative;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  width:54px;height:54px;border-radius:50%;
+  background:radial-gradient(circle at 30% 28%,#8b5cf6,#5b21b6 75%);
+  border:2.5px solid #fff;
+  box-shadow:0 5px 16px rgba(91,33,182,0.55);
+  color:#fff;cursor:pointer;
+  transition:transform 0.15s;
+}
+.sp-cluster:hover{transform:scale(1.08)}
+.sp-cluster-n{font-size:16px;font-weight:800;line-height:1.1}
+.sp-cluster-name{font-size:7px;font-weight:700;letter-spacing:0.2px;max-width:46px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sp-cluster-lock{
+  position:absolute;bottom:-7px;
+  background:#0b0a14;border:1px solid rgba(212,175,55,0.65);
+  color:#d4af37;font-size:8px;font-weight:800;
+  padding:1px 6px;border-radius:8px;white-space:nowrap;
+}
 
 /* Karta-legend */
 .sp-legend{
@@ -377,11 +404,14 @@ const Spinner = () => <span style={{display:"inline-block",width:16,height:16,bo
 const Btn = ({ch,onClick,v="p",sz="",full,disabled,style={}}) => <button className={`btn btn-${v}${sz?" btn-"+sz:""}${full?" btn-full":""}`} disabled={disabled} onClick={onClick} style={style}>{ch}</button>;
 
 // ── MAP ───────────────────────────────────────────────────────
-function SpokMap({places,onSelect}) {
+function SpokMap({places,tier="free",onSelect}) {
   const layerRef = useRef(null);
   const [mapMode, setMapMode] = useState("light");
   const [mapStyle, setMapStyle] = useState("voyager"); // voyager | terrain | satellite
   const ref = useRef(null), mapRef = useRef(null), mRefs = useRef({});
+  // Stadsbubblor visas under denna zoom; zooma in (eller klicka en bubbla) → enskilda platser
+  const CLUSTER_ZOOM = 8;
+  const pinLayerRef = useRef(null), clusterLayerRef = useRef(null), zoomHandlerRef = useRef(null);
 
   // Tile-källor — alla riktiga, tydliga karttjänster
   const TILES = {
@@ -428,14 +458,16 @@ function SpokMap({places,onSelect}) {
     layerRef.current.layer.options.subdomains = tile.subdomains;
   }
 
-  // Drop-pin marker — färgad efter scary-faktor, alltid med tema-emoji
+  // Drop-pin marker — färgad efter scary-faktor, alltid med tema-emoji.
+  // Låsta PRO-platser blir svarta med guldring + 🔒 (betalvägg vid klick).
   function mkIcon(p) {
     const scary = Math.max(1, Math.min(5, p.scary || 3));
     const featured = p.featured ? " featured" : "";
     const bookable = (p.bookable && p.booking_url) ? " bookable" : "";
-    const emoji = TYPE_ICON[p.type] || FLAG[p.country] || "👻";
+    const locked = placeLocked(p, tier) ? " locked" : "";
+    const emoji = locked ? "🔒" : (TYPE_ICON[p.type] || FLAG[p.country] || "👻");
     const html = `
-      <div class="sp-pin scary-${scary}${featured}${bookable}">
+      <div class="sp-pin scary-${scary}${featured}${bookable}${locked}">
         <div class="sp-pin-body"><span class="sp-pin-emoji">${emoji}</span></div>
         <div class="sp-pin-shadow"></div>
         ${(p.bookable && p.booking_url) ? '<div class="sp-pin-bookable">🏨</div>' : ''}
@@ -447,6 +479,64 @@ function SpokMap({places,onSelect}) {
       iconAnchor:[16,40],
       popupAnchor:[0,-34]
     });
+  }
+
+  // Bygg både stads-lagret (bubblor med antal) och plats-lagret (nålar).
+  // Vilket som visas styrs av zoomnivån: utzoomat = städer, inzoomat = platser.
+  function buildLayers(map) {
+    const L = window.L;
+    if (pinLayerRef.current) { map.removeLayer(pinLayerRef.current); pinLayerRef.current = null; }
+    if (clusterLayerRef.current) { map.removeLayer(clusterLayerRef.current); clusterLayerRef.current = null; }
+    if (zoomHandlerRef.current) { map.off("zoomend", zoomHandlerRef.current); zoomHandlerRef.current = null; }
+
+    const valid = places.filter(p=>p.lat&&p.lng);
+    const pins = L.layerGroup();
+    mRefs.current = {};
+    valid.forEach(p=>{
+      const m = L.marker([p.lat,p.lng], {icon: mkIcon(p), riseOnHover:true}).on("click", ()=>onSelect(p));
+      m.addTo(pins);
+      mRefs.current[p.id] = m;
+    });
+
+    // Stadsbubblor: gruppera per region/stad (fallback land)
+    const clusters = L.layerGroup();
+    const groups = {};
+    valid.forEach(p=>{
+      const key = `${p.region||p.country||"Övrigt"}|${p.country||""}`;
+      (groups[key] = groups[key] || []).push(p);
+    });
+    Object.entries(groups).forEach(([key, arr])=>{
+      const name = key.split("|")[0];
+      const lat = arr.reduce((s,p)=>s+p.lat,0)/arr.length;
+      const lng = arr.reduce((s,p)=>s+p.lng,0)/arr.length;
+      const lockedN = arr.filter(p=>placeLocked(p, tier)).length;
+      const esc = s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+      const html = `
+        <div class="sp-cluster" title="${esc(name)} — ${arr.length} platser. Klicka för att utforska.">
+          <div class="sp-cluster-n">${arr.length}</div>
+          <div class="sp-cluster-name">${esc(name)}</div>
+          ${lockedN>0?`<div class="sp-cluster-lock">🔒 ${lockedN} PRO</div>`:""}
+        </div>`;
+      L.marker([lat,lng], {icon: L.divIcon({className:"sp-marker", html, iconSize:[54,54], iconAnchor:[27,27]})})
+        .on("click", ()=>map.flyTo([lat,lng], CLUSTER_ZOOM+1, {duration:0.8}))
+        .addTo(clusters);
+    });
+
+    pinLayerRef.current = pins;
+    clusterLayerRef.current = clusters;
+    const sync = ()=>{
+      const cityView = map.getZoom() < CLUSTER_ZOOM;
+      if (cityView) {
+        if (!map.hasLayer(clusters)) map.addLayer(clusters);
+        if (map.hasLayer(pins)) map.removeLayer(pins);
+      } else {
+        if (!map.hasLayer(pins)) map.addLayer(pins);
+        if (map.hasLayer(clusters)) map.removeLayer(clusters);
+      }
+    };
+    zoomHandlerRef.current = sync;
+    map.on("zoomend", sync);
+    sync();
   }
 
   function init(){
@@ -476,13 +566,7 @@ function SpokMap({places,onSelect}) {
     setMapStyle(startStyle);
     applyMapMode(startMode);
     mapRef.current = map;
-
-    places.filter(p=>p.lat&&p.lng).forEach(p=>{
-      const m = window.L.marker([p.lat,p.lng], {icon: mkIcon(p), riseOnHover:true})
-        .addTo(map)
-        .on("click", ()=>onSelect(p));
-      mRefs.current[p.id] = m;
-    });
+    buildLayers(map);
   }
 
   useEffect(()=>{
@@ -491,6 +575,9 @@ function SpokMap({places,onSelect}) {
     const s=document.createElement("script");s.src=LF_JS;s.onload=init;document.head.appendChild(s);
     return()=>{if(mapRef.current){mapRef.current.remove();mapRef.current=null;mRefs.current={};}};
   },[]);
+
+  // Bygg om lagren när platser laddas/ändras eller användarens nivå ändras
+  useEffect(()=>{ if(mapRef.current&&window.L) buildLayers(mapRef.current); },[places,tier]);
 
   const ctrlBtn = (active) => ({
     background: active ? "linear-gradient(135deg,#7c3aed,#5b21b6)" : "rgba(255,255,255,0.96)",
@@ -536,6 +623,8 @@ function SpokMap({places,onSelect}) {
         <div className="sp-legend-row"><span className="sp-legend-dot" style={{background:"linear-gradient(135deg,#7c3aed,#6d28d9)"}}/>Aktivt (3)</div>
         <div className="sp-legend-row"><span className="sp-legend-dot" style={{background:"linear-gradient(135deg,#a78bfa,#7c3aed)"}}/>Lugnt (1–2)</div>
         <div className="sp-legend-row"><span className="sp-legend-dot" style={{background:"linear-gradient(135deg,#34d399,#059669)"}}/>🏨 Bokningsbart</div>
+        <div className="sp-legend-row"><span className="sp-legend-dot" style={{background:"linear-gradient(160deg,#1b1626,#050308)",boxShadow:"0 0 0 1.5px #d4af37"}}/>🔒 PRO-plats</div>
+        <div className="sp-legend-row"><span className="sp-legend-dot" style={{background:"radial-gradient(circle at 30% 28%,#8b5cf6,#5b21b6)"}}/>Stad — klicka & utforska</div>
       </div>
 
       <div ref={ref} style={{width:"100%",height:"100%"}}/>
@@ -961,7 +1050,13 @@ function PlacePopup({place,isPro,tier,onRead,onClose,onAddRoadtrip,inRoadtrip}) 
           <div style={{fontSize:10,color:"var(--tx3)",marginBottom:4}}>{FLAG[place.country]||"🌍"} {place.region} · {place.type}</div>
           <div style={{fontSize:17,fontWeight:700,color:"var(--tx)",marginBottom:6,lineHeight:1.3}}>{place.name}</div>
           <div style={{fontSize:12,color:"var(--tx3)",lineHeight:1.6,marginBottom:14}}>{place.teaser?.slice(0,100)}…</div>
-          <Btn ch={locked?"🔒 Kräver PRO":"Läs berättelsen →"} v="p" full onClick={()=>{onClose();onRead(place);}} style={{marginBottom:10}}/>
+          {locked&&(
+            <div style={{background:"rgba(212,175,55,0.08)",border:"1px solid rgba(212,175,55,0.3)",borderRadius:10,padding:"9px 12px",marginBottom:10}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#d4af37"}}>👻 PRO-plats — lås upp hela Spökkartan</div>
+              <div style={{fontSize:10,color:"var(--tx3)",marginTop:2}}>Prova för 19 kr första månaden · avbryt när som helst</div>
+            </div>
+          )}
+          <Btn ch={locked?"🔒 Lås upp berättelsen →":"Läs berättelsen →"} v="p" full onClick={()=>{onClose();onRead(place);}} style={{marginBottom:10}}/>
           <button onClick={()=>{onAddRoadtrip(place.id);onClose();}} style={{width:"100%",background:inRoadtrip?"rgba(251,191,36,0.1)":"transparent",border:`1px solid ${inRoadtrip?"#fbbf24":"var(--b)"}`,borderRadius:10,padding:"11px",fontSize:12,fontWeight:600,color:inRoadtrip?"#fbbf24":"var(--tx4)",cursor:"pointer"}}>
             {inRoadtrip?"✓ I din roadtrip":"+ Lägg till roadtrip"}
           </button>
@@ -4381,7 +4476,7 @@ export default function App() {
         {/* MAP / SPÖKKARTAN */}
         {view==="map"&&(
           <div style={{flex:1,position:"relative",overflow:"hidden"}}>
-            <SpokMap places={allPlacesMut} onSelect={setMapSel}/>
+            <SpokMap places={allPlacesMut} tier={effectiveTier(user,isPro)} onSelect={setMapSel}/>
             {/* Stats bar */}
             <div style={{position:"absolute",bottom:16,left:12,zIndex:400,background:"rgba(13,11,27,0.93)",border:"1px solid var(--b2)",borderRadius:10,padding:"6px 12px",display:"flex",gap:10,backdropFilter:"blur(10px)"}}>
               <span style={{fontSize:10,color:"#34d399"}}>👻 {allPlacesMut.length} platser</span>
