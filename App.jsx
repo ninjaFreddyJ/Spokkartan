@@ -1,7 +1,7 @@
 
 // SPÖKKARTAN v7 — Mobile-first, working auth, clean navigation
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { fetchPlaces, subscribeToPlaces, signInWithGoogle, signInWithEmail, signUpWithEmail, resetPasswordForEmail, signOut as supabaseSignOut, getProfile, onAuthChange, getSession, fetchPartners, createPartner, fetchPartnerPackages, submitPartnerQuestion, fetchPartnerQuestions, updatePartnerQuestion, fetchHunters, fetchHunterVisits, updateHunterProfile, upsertHunterVisit, submitPlaceSuggestion, fetchPlaceSuggestions, updatePlaceSuggestion, deletePlaceSuggestion, savePushSubscription, removePushSubscription, upsertPlaceReview, fetchMyPlaceReview, fetchPlaceReviewStats, fetchProMembers, redeemCode, fetchTourPartnersForPlace, fetchPartnerPlaceIds, setPartnerPlaces } from "./supabase";
+import { fetchPlaces, subscribeToPlaces, signInWithGoogle, signInWithEmail, signUpWithEmail, resetPasswordForEmail, signOut as supabaseSignOut, getProfile, onAuthChange, getSession, fetchPartners, createPartner, fetchPartnerPackages, submitPartnerQuestion, fetchPartnerQuestions, updatePartnerQuestion, fetchHunters, fetchHunterVisits, updateHunterProfile, upsertHunterVisit, submitPlaceSuggestion, fetchPlaceSuggestions, updatePlaceSuggestion, deletePlaceSuggestion, savePushSubscription, removePushSubscription, upsertPlaceReview, fetchMyPlaceReview, fetchPlaceReviewStats, fetchProMembers, redeemCode, fetchTourPartnersForPlace, fetchPartnerPlaceIds, setPartnerPlaces, fetchTours, fetchToursForPlace, upsertTour, deleteTour, fetchTourPlaceIds, setTourPlaces } from "./supabase";
 
 // Web-push: publik VAPID-nyckel (publik = ofarlig att baka in). Sätt
 // VITE_VAPID_PUBLIC_KEY i Vercel för att rotera. Privata nyckeln ligger ENDAST
@@ -82,8 +82,9 @@ const HAUNTED_HOTELS = [
   {name:"Dragsholm Slot",region:"Sjælland",country:"Danmark",price:"fr. 2 400 kr/natt",scary:5,url:"https://www.booking.com/searchresults.en.html?ss=Dragsholm+Slot",partner:"Booking.com"},
   {name:"Dalen Hotel",region:"Telemark",country:"Norge",price:"fr. 1 500 kr/natt",scary:4,url:"https://www.booking.com/searchresults.sv.html?ss=Dalen+Hotel+Norway",partner:"Booking.com"},
 ];
-// Vandringar tipsas enbart via Spökkartans egna partners (typ "tour") —
-// inga länkar till externa guideplattformar som GetYourGuide/TripAdvisor.
+// Vandringar (stadsvandring.io) är PRO-innehåll: en hemsökt plats som ingår
+// i en vandring visar det på sin platssida — länken ligger bakom betalväggen.
+// Inga länkar till externa guideplattformar som GetYourGuide/TripAdvisor.
 const BASE_HUNTERS = [
   {
     id:"h1",name:"Matti Hietasaari",verified:true,speciality:"EMF & ITC",since:"2015",places:47,
@@ -203,52 +204,71 @@ select option{background:var(--card2)}
 .leaflet-popup-tip,.leaflet-popup-close-button{display:none!important}
 .leaflet-popup-content{margin:0!important;width:auto!important}
 
-/* MARKERS — drop-pin riktig karta-stil */
-.sp-marker{filter:drop-shadow(0 3px 5px rgba(0,0,0,0.35))}
+/* MARKERS — rena, diskreta punktnålar (inga emojis på kartan) */
+.sp-marker{filter:drop-shadow(0 2px 4px rgba(0,0,0,0.3))}
 .sp-pin{
   position:relative;
-  width:32px;height:42px;
+  width:20px;height:20px;
   cursor:pointer;
-  transition:transform 0.18s cubic-bezier(.16,1,.3,1);
 }
-.sp-pin:hover{transform:translateY(-3px) scale(1.08)}
 .sp-pin-body{
-  position:absolute;top:0;left:0;
-  width:32px;height:32px;
-  border-radius:50% 50% 50% 0;
-  transform:rotate(-45deg);
-  box-shadow:inset -2px -3px 6px rgba(0,0,0,0.2),0 0 0 2px #fff;
-  display:flex;align-items:center;justify-content:center;
-}
-.sp-pin-emoji{
-  transform:rotate(45deg);
-  font-size:15px;line-height:1;
-}
-.sp-pin-shadow{
-  position:absolute;
-  bottom:-2px;left:50%;
-  transform:translateX(-50%);
-  width:14px;height:4px;
-  background:rgba(0,0,0,0.3);
+  width:20px;height:20px;
   border-radius:50%;
-  filter:blur(2px);
+  border:2px solid #fff;
+  box-shadow:0 2px 6px rgba(0,0,0,0.35);
+  display:flex;align-items:center;justify-content:center;
+  transition:transform 0.15s;
 }
-.sp-pin.featured .sp-pin-body{box-shadow:inset -2px -3px 6px rgba(0,0,0,0.2),0 0 0 2px #fff,0 0 0 4px rgba(212,175,55,0.6)}
+.sp-pin:hover .sp-pin-body{transform:scale(1.2)}
+.sp-pin-emoji{font-size:9px;line-height:1}
+.sp-pin.featured .sp-pin-body{box-shadow:0 0 0 2px rgba(212,175,55,0.75),0 2px 6px rgba(0,0,0,0.35)}
 .sp-pin.scary-5 .sp-pin-body{background:linear-gradient(135deg,#dc2626,#7c2d12)}
 .sp-pin.scary-4 .sp-pin-body{background:linear-gradient(135deg,#9333ea,#5b21b6)}
 .sp-pin.scary-3 .sp-pin-body{background:linear-gradient(135deg,#7c3aed,#6d28d9)}
 .sp-pin.scary-2 .sp-pin-body{background:linear-gradient(135deg,#a78bfa,#7c3aed)}
 .sp-pin.scary-1 .sp-pin-body{background:linear-gradient(135deg,#c4b5fd,#a78bfa)}
-.sp-pin.bookable .sp-pin-body{box-shadow:inset -2px -3px 6px rgba(0,0,0,0.2),0 0 0 2px #fff,0 0 0 3px rgba(52,211,153,0.7)}
+.sp-pin.bookable .sp-pin-body{box-shadow:0 0 0 2px rgba(52,211,153,0.8),0 2px 6px rgba(0,0,0,0.35)}
 .sp-pin-bookable{
-  position:absolute;top:-4px;right:-4px;
+  position:absolute;top:-5px;right:-5px;
   background:linear-gradient(135deg,#34d399,#059669);
   border-radius:50%;
-  width:18px;height:18px;
+  width:13px;height:13px;
   display:flex;align-items:center;justify-content:center;
-  font-size:9px;
-  border:2px solid #fff;
-  box-shadow:0 2px 4px rgba(0,0,0,0.3);
+  font-size:7px;
+  border:1.5px solid #fff;
+  box-shadow:0 1px 3px rgba(0,0,0,0.3);
+}
+/* Låsta PRO-platser — svarta punkter med guldring (promotar PRO) */
+.sp-pin.locked .sp-pin-body{
+  background:linear-gradient(160deg,#1b1626,#050308);
+  box-shadow:0 0 0 2px #d4af37,0 2px 6px rgba(0,0,0,0.5);
+}
+
+/* Stadsbubblor — som i promobilden: rena lila cirklar med antal.
+   Klicka en bubbla → zooma in → den delar sig tills platserna syns. */
+.sp-cluster{
+  position:relative;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  border-radius:50%;
+  background:radial-gradient(circle at 30% 28%,#8b5cf6,#5b21b6 75%);
+  border:2.5px solid #fff;
+  box-shadow:0 5px 16px rgba(91,33,182,0.55);
+  color:#fff;cursor:pointer;
+  transition:transform 0.15s;
+}
+.sp-cluster:hover{transform:scale(1.1)}
+.sp-cluster.sm{width:38px;height:38px}
+.sp-cluster.md{width:48px;height:48px}
+.sp-cluster.lg{width:60px;height:60px}
+.sp-cluster-n{font-weight:800;line-height:1.1;font-size:13px}
+.sp-cluster.md .sp-cluster-n{font-size:15px}
+.sp-cluster.lg .sp-cluster-n{font-size:17px}
+.sp-cluster-name{font-size:7px;font-weight:700;letter-spacing:0.2px;max-width:44px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sp-cluster-lock{
+  position:absolute;bottom:-7px;
+  background:#0b0a14;border:1px solid rgba(212,175,55,0.65);
+  color:#d4af37;font-size:8px;font-weight:800;
+  padding:1px 6px;border-radius:8px;white-space:nowrap;
 }
 
 /* Karta-legend */
@@ -375,11 +395,14 @@ const Spinner = () => <span style={{display:"inline-block",width:16,height:16,bo
 const Btn = ({ch,onClick,v="p",sz="",full,disabled,style={}}) => <button className={`btn btn-${v}${sz?" btn-"+sz:""}${full?" btn-full":""}`} disabled={disabled} onClick={onClick} style={style}>{ch}</button>;
 
 // ── MAP ───────────────────────────────────────────────────────
-function SpokMap({places,onSelect}) {
+function SpokMap({places,tier="free",onSelect}) {
   const layerRef = useRef(null);
   const [mapMode, setMapMode] = useState("light");
   const [mapStyle, setMapStyle] = useState("voyager"); // voyager | terrain | satellite
   const ref = useRef(null), mapRef = useRef(null), mRefs = useRef({});
+  // Avståndsbaserad klustring: närliggande platser blir en bubbla med antal;
+  // bubblor delar sig när man zoomar in tills enskilda platser syns.
+  const markerLayerRef = useRef(null), viewHandlerRef = useRef(null);
 
   // Tile-källor — alla riktiga, tydliga karttjänster
   const TILES = {
@@ -426,25 +449,86 @@ function SpokMap({places,onSelect}) {
     layerRef.current.layer.options.subdomains = tile.subdomains;
   }
 
-  // Drop-pin marker — färgad efter scary-faktor, alltid med tema-emoji
+  // Ren punktnål — färgad efter scary-faktor, ingen emoji.
+  // Låsta PRO-platser blir svarta med guldring + litet 🔒 (betalvägg vid klick).
   function mkIcon(p) {
     const scary = Math.max(1, Math.min(5, p.scary || 3));
     const featured = p.featured ? " featured" : "";
     const bookable = (p.bookable && p.booking_url) ? " bookable" : "";
-    const emoji = TYPE_ICON[p.type] || FLAG[p.country] || "👻";
+    const locked = placeLocked(p, tier) ? " locked" : "";
     const html = `
-      <div class="sp-pin scary-${scary}${featured}${bookable}">
-        <div class="sp-pin-body"><span class="sp-pin-emoji">${emoji}</span></div>
-        <div class="sp-pin-shadow"></div>
+      <div class="sp-pin scary-${scary}${featured}${bookable}${locked}">
+        <div class="sp-pin-body">${locked?'<span class="sp-pin-emoji">🔒</span>':''}</div>
         ${(p.bookable && p.booking_url) ? '<div class="sp-pin-bookable">🏨</div>' : ''}
       </div>`;
     return window.L.divIcon({
       className:"sp-marker",
       html,
-      iconSize:[32,42],
-      iconAnchor:[16,40],
-      popupAnchor:[0,-34]
+      iconSize:[20,20],
+      iconAnchor:[10,10],
+      popupAnchor:[0,-12]
     });
+  }
+
+  // Rita om kartlagret för aktuell vy: platser inom ~60 px grupperas till en
+  // bubbla (med antal + stadsnamn när alla ligger i samma region); klick på
+  // bubblan zoomar in så den delar sig — tills enskilda platser syns som nålar.
+  function renderView(map) {
+    const L = window.L;
+    if (!markerLayerRef.current) { markerLayerRef.current = L.layerGroup().addTo(map); }
+    const layer = markerLayerRef.current;
+    layer.clearLayers();
+
+    const zoom = map.getZoom();
+    const maxZ = (layerRef.current?.layer?.options?.maxZoom) || 18;
+    const valid = places.filter(p=>p.lat&&p.lng);
+    const R = 60; // klusterradie i pixlar
+
+    // Girig pixel-klustring vid aktuell zoom
+    const clusters = [];
+    valid.forEach(p=>{
+      const pt = map.project([p.lat,p.lng], zoom);
+      let c = clusters.find(c=>Math.hypot(c.x-pt.x, c.y-pt.y) < R);
+      if (!c) { c = { x:pt.x, y:pt.y, items:[] }; clusters.push(c); }
+      c.items.push(p);
+    });
+
+    const esc = s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+    mRefs.current = {};
+    clusters.forEach(c=>{
+      if (c.items.length === 1) {
+        const p = c.items[0];
+        const m = L.marker([p.lat,p.lng], {icon: mkIcon(p), riseOnHover:true}).on("click", ()=>onSelect(p));
+        m.addTo(layer);
+        mRefs.current[p.id] = m;
+        return;
+      }
+      const lat = c.items.reduce((s,p)=>s+p.lat,0)/c.items.length;
+      const lng = c.items.reduce((s,p)=>s+p.lng,0)/c.items.length;
+      const n = c.items.length;
+      const lockedN = c.items.filter(p=>placeLocked(p, tier)).length;
+      const regions = new Set(c.items.map(p=>p.region||p.country||""));
+      const name = regions.size===1 ? [...regions][0] : "";
+      const size = n>=40?"lg":n>=10?"md":"sm";
+      const html = `
+        <div class="sp-cluster ${size}" title="${n} platser${name?` i ${esc(name)}`:""} — klicka för att utforska">
+          <div class="sp-cluster-n">${n}</div>
+          ${name?`<div class="sp-cluster-name">${esc(name)}</div>`:""}
+          ${lockedN>0?`<div class="sp-cluster-lock">🔒 ${lockedN}</div>`:""}
+        </div>`;
+      const px = size==="lg"?60:size==="md"?48:38;
+      L.marker([lat,lng], {icon: L.divIcon({className:"sp-marker", html, iconSize:[px,px], iconAnchor:[px/2,px/2]})})
+        .on("click", ()=>map.flyTo([lat,lng], Math.min(zoom+2, maxZ), {duration:0.7}))
+        .addTo(layer);
+    });
+  }
+
+  function buildLayers(map) {
+    if (viewHandlerRef.current) { map.off("zoomend moveend", viewHandlerRef.current); }
+    const handler = ()=>renderView(map);
+    viewHandlerRef.current = handler;
+    map.on("zoomend moveend", handler);
+    renderView(map);
   }
 
   function init(){
@@ -474,13 +558,7 @@ function SpokMap({places,onSelect}) {
     setMapStyle(startStyle);
     applyMapMode(startMode);
     mapRef.current = map;
-
-    places.filter(p=>p.lat&&p.lng).forEach(p=>{
-      const m = window.L.marker([p.lat,p.lng], {icon: mkIcon(p), riseOnHover:true})
-        .addTo(map)
-        .on("click", ()=>onSelect(p));
-      mRefs.current[p.id] = m;
-    });
+    buildLayers(map);
   }
 
   useEffect(()=>{
@@ -489,6 +567,9 @@ function SpokMap({places,onSelect}) {
     const s=document.createElement("script");s.src=LF_JS;s.onload=init;document.head.appendChild(s);
     return()=>{if(mapRef.current){mapRef.current.remove();mapRef.current=null;mRefs.current={};}};
   },[]);
+
+  // Bygg om lagren när platser laddas/ändras eller användarens nivå ändras
+  useEffect(()=>{ if(mapRef.current&&window.L) buildLayers(mapRef.current); },[places,tier]);
 
   const ctrlBtn = (active) => ({
     background: active ? "linear-gradient(135deg,#7c3aed,#5b21b6)" : "rgba(255,255,255,0.96)",
@@ -534,6 +615,8 @@ function SpokMap({places,onSelect}) {
         <div className="sp-legend-row"><span className="sp-legend-dot" style={{background:"linear-gradient(135deg,#7c3aed,#6d28d9)"}}/>Aktivt (3)</div>
         <div className="sp-legend-row"><span className="sp-legend-dot" style={{background:"linear-gradient(135deg,#a78bfa,#7c3aed)"}}/>Lugnt (1–2)</div>
         <div className="sp-legend-row"><span className="sp-legend-dot" style={{background:"linear-gradient(135deg,#34d399,#059669)"}}/>🏨 Bokningsbart</div>
+        <div className="sp-legend-row"><span className="sp-legend-dot" style={{background:"linear-gradient(160deg,#1b1626,#050308)",boxShadow:"0 0 0 1.5px #d4af37"}}/>🔒 PRO-plats</div>
+        <div className="sp-legend-row"><span className="sp-legend-dot" style={{background:"radial-gradient(circle at 30% 28%,#8b5cf6,#5b21b6)"}}/>Stad — klicka & utforska</div>
       </div>
 
       <div ref={ref} style={{width:"100%",height:"100%"}}/>
@@ -959,7 +1042,13 @@ function PlacePopup({place,isPro,tier,onRead,onClose,onAddRoadtrip,inRoadtrip}) 
           <div style={{fontSize:10,color:"var(--tx3)",marginBottom:4}}>{FLAG[place.country]||"🌍"} {place.region} · {place.type}</div>
           <div style={{fontSize:17,fontWeight:700,color:"var(--tx)",marginBottom:6,lineHeight:1.3}}>{place.name}</div>
           <div style={{fontSize:12,color:"var(--tx3)",lineHeight:1.6,marginBottom:14}}>{place.teaser?.slice(0,100)}…</div>
-          <Btn ch={locked?"🔒 Kräver PRO":"Läs berättelsen →"} v="p" full onClick={()=>{onClose();onRead(place);}} style={{marginBottom:10}}/>
+          {locked&&(
+            <div style={{background:"rgba(212,175,55,0.08)",border:"1px solid rgba(212,175,55,0.3)",borderRadius:10,padding:"9px 12px",marginBottom:10}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#d4af37"}}>👻 PRO-plats — lås upp hela Spökkartan</div>
+              <div style={{fontSize:10,color:"var(--tx3)",marginTop:2}}>Prova för 19 kr första månaden · avbryt när som helst</div>
+            </div>
+          )}
+          <Btn ch={locked?"🔒 Lås upp berättelsen →":"Läs berättelsen →"} v="p" full onClick={()=>{onClose();onRead(place);}} style={{marginBottom:10}}/>
           <button onClick={()=>{onAddRoadtrip(place.id);onClose();}} style={{width:"100%",background:inRoadtrip?"rgba(251,191,36,0.1)":"transparent",border:`1px solid ${inRoadtrip?"#fbbf24":"var(--b)"}`,borderRadius:10,padding:"11px",fontSize:12,fontWeight:600,color:inRoadtrip?"#fbbf24":"var(--tx4)",cursor:"pointer"}}>
             {inRoadtrip?"✓ I din roadtrip":"+ Lägg till roadtrip"}
           </button>
@@ -1122,22 +1211,46 @@ function Reader({place,allPlaces,isPro,onClose,onNavigate,upgrade,roadtrip,setRo
   }
   function openReview(){ if(!user){onAuth?.();return;} setShowReview(true); }
 
-  // ── Vandringar som besöker platsen (Spökkartans egna partners) ──
+  // ── Vandringar som besöker platsen ──
+  // Egna digitala vandringar (stadsvandring.io) först, ev. partnervandringar efter.
+  const [ownTours,setOwnTours]=useState([]);
   const [tourPartners,setTourPartners]=useState([]);
   const [openTour,setOpenTour]=useState(null);
   useEffect(()=>{
     let on=true;
-    setTourPartners([]);
+    setOwnTours([]);setTourPartners([]);
+    fetchToursForPlace(place.id).then(ts=>{if(on)setOwnTours(ts||[]);}).catch(()=>{});
     fetchTourPartnersForPlace(place.id).then(tp=>{if(on)setTourPartners(tp||[]);}).catch(()=>{});
     return ()=>{on=false;};
   },[place.id]);
 
-  const tourSection=tourPartners.length>0&&(
+  // Vandringarna är PRO-innehåll — länken till appen ligger bakom betalväggen.
+  const canWalk=TIER_RANK[tier||"free"]>=TIER_RANK.pro;
+  const nTours=ownTours.length+tourPartners.length;
+  const tourSection=nTours>0&&(
     <div style={{background:"linear-gradient(135deg,rgba(124,58,237,0.08),rgba(124,58,237,0.02))",border:"1px solid rgba(124,58,237,0.25)",borderRadius:14,padding:"16px",marginBottom:20}}>
       <div style={{fontSize:12,fontWeight:800,color:"#a78bfa",marginBottom:3}}>🚶 Den här platsen ingår i en vandring</div>
       <div style={{fontSize:12,color:"var(--tx3)",lineHeight:1.6,marginBottom:12}}>
-        Vill du höra historien berättas på plats? {place.name} är ett stopp på {tourPartners.length===1?"den här vandringen":"de här vandringarna"}.
+        {place.name} är ett stopp på {nTours===1?"en guidad vandring":"guidade vandringar"} — upplev historien på plats med mobilen som guide.
       </div>
+      {ownTours.map((t,i)=>{
+        const rowStyle={display:"flex",gap:10,alignItems:"center",width:"100%",background:"var(--card)",border:"1px solid var(--b)",borderRadius:10,padding:"11px 12px",marginBottom:(i<ownTours.length-1||tourPartners.length>0)?7:0,textDecoration:"none",cursor:"pointer",textAlign:"left"};
+        const inner=(<>
+          {t.img
+            ?<img src={t.img} alt="" style={{width:38,height:38,borderRadius:9,objectFit:"cover",flexShrink:0}}/>
+            :<span style={{width:38,height:38,borderRadius:9,background:"var(--bg3)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>{t.kind==="stad"?"🚶":"👻"}</span>}
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:12,fontWeight:700,color:"var(--tx)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.name}</div>
+            <div style={{fontSize:10,color:"var(--tx3)"}}>
+              {t.kind==="stad"?"Digital stadsvandring":"Digital spökvandring"}{t.city?` · ${t.city}`:""}{t.duration_min?` · ${t.duration_min} min`:""}{t.tour_note?` · ${t.tour_note}`:""}
+            </div>
+          </div>
+          <div style={{fontSize:11,fontWeight:600,color:canWalk?"#a78bfa":"#d4af37",flexShrink:0}}>{canWalk?"Gå vandringen →":"🔒 Lås upp →"}</div>
+        </>);
+        return canWalk
+          ?<a key={t.id} href={t.url} target="_blank" rel="noreferrer" style={rowStyle}>{inner}</a>
+          :<button key={t.id} onClick={upgrade} style={rowStyle}>{inner}</button>;
+      })}
       {tourPartners.map((tp,i)=>(
         <button key={tp.id} onClick={()=>setOpenTour(tp)} style={{display:"flex",gap:10,alignItems:"center",width:"100%",background:"var(--card)",border:"1px solid var(--b)",borderRadius:10,padding:"11px 12px",marginBottom:i<tourPartners.length-1?7:0,cursor:"pointer",textAlign:"left"}}>
           {tp.avatar
@@ -1154,6 +1267,13 @@ function Reader({place,allPlaces,isPro,onClose,onNavigate,upgrade,roadtrip,setRo
           <div style={{fontSize:11,fontWeight:600,color:"#a78bfa",flexShrink:0}}>Se vandringen →</div>
         </button>
       ))}
+      {ownTours.length>0&&(
+        <div style={{fontSize:10,color:"var(--tx4)",marginTop:9,lineHeight:1.5}}>
+          {canWalk
+            ?<>Vandringen öppnas i vår app <strong style={{color:"var(--tx3)"}}>stadsvandring.io</strong> — karta, berättelser och quiz direkt i mobilen.</>
+            :<>🔒 Vandringarna ingår i <strong style={{color:"#d4af37"}}>Ghost Hunter PRO</strong> — prova för 19 kr första månaden.</>}
+        </div>
+      )}
     </div>
   );
 
@@ -2060,6 +2180,179 @@ const SCRAPER_JOBS = [
   {id:"j4",name:"USA — Paranormal Hotspots",region:"USA/Kanada",status:"scheduled",last:"2026-04-26 03:00",found:0,queue:0,progress:0},
 ];
 
+// ── ADMIN: EGNA VANDRINGAR (stadsvandring.io) ────────────────
+// Lägg upp dina digitala spök-/stadsvandringar och koppla vilka platser
+// som ingår — platssidorna länkar då till vandringen i appen.
+function AdminToursTab({ allPlaces }) {
+  const [tours, setTours] = useState(null);
+  const [editing, setEditing] = useState(null);   // tour-objekt (nytt = utan id i DB)
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  // Formulärfält
+  const [placeIds, setPlaceIds] = useState([]);
+  const [placeSearch, setPlaceSearch] = useState("");
+
+  async function reload() {
+    const t = await fetchTours({ includeInactive: true });
+    setTours(t);
+  }
+  useEffect(() => { reload().catch(()=>setTours([])); }, []);
+
+  async function openEdit(tour) {
+    setErr("");
+    setPlaceSearch("");
+    if (tour) {
+      setEditing({ ...tour });
+      setPlaceIds(await fetchTourPlaceIds(tour.id).catch(()=>[]));
+    } else {
+      setEditing({ id:"", name:"", kind:"spok", city:"", url:"", teaser:"", price_from:null, duration_min:null, img:"", active:true, sort_order:0, _new:true });
+      setPlaceIds([]);
+    }
+  }
+
+  async function save() {
+    if (!editing.name.trim()) { setErr("Namn krävs"); return; }
+    if (!editing.url.trim()) { setErr("Länk till vandringen i stadsvandring.io krävs"); return; }
+    const id = (editing.id || editing.name).trim().toLowerCase()
+      .replace(/[åä]/g,"a").replace(/ö/g,"o").replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
+    setBusy(true); setErr("");
+    try {
+      const { _new, ...row } = editing;
+      await upsertTour({ ...row, id, name: editing.name.trim(), url: editing.url.trim(),
+        city: editing.city.trim(), teaser: editing.teaser.trim(), img: editing.img.trim(),
+        price_from: editing.price_from ? parseInt(editing.price_from,10) : null,
+        duration_min: editing.duration_min ? parseInt(editing.duration_min,10) : null });
+      await setTourPlaces(id, placeIds);
+      await reload();
+      setEditing(null);
+    } catch(e) { setErr("Kunde inte spara: " + e.message); }
+    finally { setBusy(false); }
+  }
+
+  async function remove(tour) {
+    if (!confirm(`Ta bort "${tour.name}"? Platskopplingarna försvinner också.`)) return;
+    try { await deleteTour(tour.id); await reload(); }
+    catch(e) { alert("Kunde inte ta bort: " + e.message); }
+  }
+
+  const q = placeSearch.trim().toLowerCase();
+  const placeMatches = q
+    ? allPlaces.filter(p => !placeIds.includes(p.id) &&
+        (p.name.toLowerCase().includes(q) || (p.region||"").toLowerCase().includes(q))).slice(0,6)
+    : [];
+
+  const inp = {width:"100%",background:"var(--bg3)",border:"1px solid var(--b)",borderRadius:9,padding:"10px 12px",fontSize:13,color:"var(--tx)",marginBottom:9};
+  const lbl = {fontSize:11,fontWeight:600,color:"var(--tx3)",marginBottom:4,marginTop:4,display:"block"};
+
+  return (
+    <div style={{maxWidth:640}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,gap:10}}>
+        <div>
+          <div style={{fontSize:13,fontWeight:700,color:"var(--tx)"}}>🚶 Dina digitala vandringar</div>
+          <div style={{fontSize:11,color:"var(--tx3)"}}>Vandringar i stadsvandring.io — kopplade platser länkar hit från sina sidor.</div>
+        </div>
+        <Btn ch="+ Ny vandring" v="p" sz="sm" onClick={()=>openEdit(null)}/>
+      </div>
+
+      {tours===null ? (
+        <div style={{fontSize:12,color:"var(--tx3)",padding:20,textAlign:"center"}}>Laddar…</div>
+      ) : tours.length===0 ? (
+        <div style={{background:"var(--card)",border:"1px dashed var(--b2)",borderRadius:12,padding:"20px 16px",textAlign:"center"}}>
+          <div style={{fontSize:30,marginBottom:8}}>🚶</div>
+          <div style={{fontSize:12,fontWeight:700,color:"var(--tx)",marginBottom:4}}>Inga vandringar upplagda än</div>
+          <div style={{fontSize:11,color:"var(--tx3)",marginBottom:12,lineHeight:1.55}}>Lägg upp din första spök- eller stadsvandring och koppla platserna som ingår.</div>
+          <Btn ch="+ Lägg upp din första vandring" v="p" sz="sm" onClick={()=>openEdit(null)}/>
+        </div>
+      ) : (
+        <div style={{display:"grid",gap:9}}>
+          {tours.map(t=>(
+            <div key={t.id} style={{background:"var(--card)",border:"1px solid var(--b)",borderRadius:12,padding:"12px 14px",display:"flex",gap:10,alignItems:"center",opacity:t.active?1:0.55}}>
+              <span style={{fontSize:22,flexShrink:0}}>{t.kind==="stad"?"🚶":"👻"}</span>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:12,fontWeight:700,color:"var(--tx)"}}>{t.name}{!t.active&&<span style={{fontSize:9,color:"#fbbf24",marginLeft:6}}>PAUSAD</span>}</div>
+                <div style={{fontSize:10,color:"var(--tx3)"}}>{t.kind==="stad"?"Stadsvandring":"Spökvandring"}{t.city?` · ${t.city}`:""} · <a href={t.url} target="_blank" rel="noreferrer" style={{color:"#a78bfa"}}>länk ↗</a></div>
+              </div>
+              <Btn ch="Redigera" v="ghost" sz="sm" onClick={()=>openEdit(t)}/>
+              <button onClick={()=>remove(t)} style={{background:"none",border:"none",color:"#f87171",cursor:"pointer",fontSize:14,padding:4}} title="Ta bort">🗑</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {editing&&(
+        <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)setEditing(null);}}>
+          <div className="modal-sheet au" style={{maxHeight:"92vh",overflowY:"auto"}}>
+            <div className="modal-handle"/>
+            <button onClick={()=>setEditing(null)} style={{position:"absolute",top:14,right:14,background:"none",border:"none",color:"var(--tx3)",cursor:"pointer",fontSize:20,padding:4}}>✕</button>
+            <h2 style={{fontSize:17,fontWeight:800,color:"var(--tx)",marginBottom:12}}>{editing._new?"🚶 Ny vandring":"🚶 Redigera vandring"}</h2>
+
+            <label style={lbl}>Typ</label>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7,marginBottom:9}}>
+              {[["spok","👻 Spökvandring"],["stad","🚶 Stadsvandring"]].map(([k,label])=>(
+                <button key={k} onClick={()=>setEditing(ed=>({...ed,kind:k}))} style={{background:editing.kind===k?"rgba(124,58,237,0.18)":"var(--bg3)",border:`1px solid ${editing.kind===k?"#7c3aed":"var(--b)"}`,borderRadius:9,padding:"10px",fontSize:12,fontWeight:600,color:editing.kind===k?"#a78bfa":"var(--tx2)",cursor:"pointer"}}>{label}</button>
+              ))}
+            </div>
+
+            <label style={lbl}>Namn *</label>
+            <input style={inp} value={editing.name} onChange={e=>setEditing(ed=>({...ed,name:e.target.value}))} placeholder="t.ex. Spökvandring Skänninge"/>
+
+            <label style={lbl}>Länk till vandringen i stadsvandring.io *</label>
+            <input style={inp} value={editing.url} onChange={e=>setEditing(ed=>({...ed,url:e.target.value}))} placeholder="https://stadsvandring.io/..."/>
+
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:9}}>
+              <div><label style={lbl}>Stad</label><input style={inp} value={editing.city||""} onChange={e=>setEditing(ed=>({...ed,city:e.target.value}))} placeholder="Skänninge"/></div>
+              <div><label style={lbl}>Längd (min)</label><input style={inp} type="number" value={editing.duration_min||""} onChange={e=>setEditing(ed=>({...ed,duration_min:e.target.value}))} placeholder="60"/></div>
+              <div><label style={lbl}>Pris fr. (kr)</label><input style={inp} type="number" value={editing.price_from||""} onChange={e=>setEditing(ed=>({...ed,price_from:e.target.value}))} placeholder="tomt = gratis"/></div>
+            </div>
+
+            <label style={lbl}>Kort beskrivning</label>
+            <textarea style={{...inp,minHeight:60,resize:"vertical"}} value={editing.teaser||""} onChange={e=>setEditing(ed=>({...ed,teaser:e.target.value}))} placeholder="En kuslig vandring genom stadens mörka historia…"/>
+
+            <label style={lbl}>Bild-URL (valfri)</label>
+            <input style={inp} value={editing.img||""} onChange={e=>setEditing(ed=>({...ed,img:e.target.value}))} placeholder="https://..."/>
+
+            <label style={lbl}>Platser på Spökkartan som ingår</label>
+            <p style={{fontSize:10,color:"var(--tx4)",lineHeight:1.55,margin:"0 0 8px"}}>Varje kopplad plats länkar till vandringen från sin sida.</p>
+            {placeIds.length>0&&(
+              <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>
+                {placeIds.map(id=>{
+                  const p=allPlaces.find(x=>x.id===id);
+                  return (
+                    <span key={id} style={{background:"rgba(124,58,237,0.15)",border:"1px solid #7c3aed",borderRadius:14,padding:"4px 10px",fontSize:11,fontWeight:600,color:"#a78bfa",display:"flex",gap:5,alignItems:"center"}}>
+                      {p?.name||id}
+                      <button onClick={()=>setPlaceIds(ids=>ids.filter(x=>x!==id))} style={{background:"none",border:"none",color:"#a78bfa",cursor:"pointer",fontSize:12,padding:0}}>✕</button>
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+            <input style={inp} value={placeSearch} onChange={e=>setPlaceSearch(e.target.value)} placeholder="Sök plats — t.ex. Skänninge…"/>
+            {placeMatches.length>0&&(
+              <div style={{border:"1px solid var(--b)",borderRadius:9,marginTop:-6,marginBottom:10,overflow:"hidden"}}>
+                {placeMatches.map(p=>(
+                  <button key={p.id} onClick={()=>{setPlaceIds(ids=>[...ids,p.id]);setPlaceSearch("");}} style={{display:"flex",gap:8,alignItems:"center",width:"100%",background:"var(--bg3)",border:"none",borderBottom:"1px solid var(--b)",padding:"9px 12px",fontSize:12,color:"var(--tx)",cursor:"pointer",textAlign:"left"}}>
+                    <span>{TYPE_ICON[p.type]||"👻"}</span>
+                    <span style={{flex:1}}>{p.name}</span>
+                    <span style={{fontSize:10,color:"var(--tx4)"}}>{p.region}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <label style={{...lbl,display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}>
+              <input type="checkbox" checked={editing.active} onChange={e=>setEditing(ed=>({...ed,active:e.target.checked}))}/>
+              Aktiv (visas på platssidor och i shopen)
+            </label>
+
+            {err&&<div style={{background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.3)",borderRadius:8,padding:"8px 12px",fontSize:12,color:"#ef4444",marginTop:8,marginBottom:4}}>{err}</div>}
+            <Btn ch={busy?"Sparar…":"Spara vandringen"} v="p" full onClick={save} disabled={busy} style={{marginTop:10}}/>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AdminDash({allPlaces,setAllPlaces,user,onLogout}) {
   const [tab,setTab]=useState("overview");
   const [search,setSearch]=useState("");
@@ -2132,7 +2425,7 @@ function AdminDash({allPlaces,setAllPlaces,user,onLogout}) {
     setInstruction("");
   }
 
-  const TABS=[["overview","📊","Översikt"],["places","📍","Platser"],["suggestions","📥","Förslag"],["scraper","🔍","Scraper"],["members","💎","Pro"],["users","👤","Användare"],["settings","⚙️","Inställningar"]];
+  const TABS=[["overview","📊","Översikt"],["places","📍","Platser"],["tours","🚶","Vandringar"],["suggestions","📥","Förslag"],["scraper","🔍","Scraper"],["members","💎","Pro"],["users","👤","Användare"],["settings","⚙️","Inställningar"]];
 
   return(
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
@@ -2270,6 +2563,9 @@ function AdminDash({allPlaces,setAllPlaces,user,onLogout}) {
         )}
 
         {/* ── SUGGESTIONS INBOX ── */}
+        {/* ── VANDRINGAR (stadsvandring.io) ── */}
+        {tab==="tours"&&<AdminToursTab allPlaces={allPlaces}/>}
+
         {tab==="suggestions"&&(
           <div>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:8}}>
@@ -2940,42 +3236,6 @@ function PartnerCard({ p, onClick }) {
         </div>
       </div>
     </div>
-  );
-}
-
-// ── VANDRINGAR I SHOPEN (endast egna partners) ───────────────
-function TourPartnersShopSection({ user, allPlaces, onOpenPlace, onBrowsePartners, onBecomePartner }) {
-  const [tours, setTours] = useState(null);
-  const [openTour, setOpenTour] = useState(null);
-
-  useEffect(() => {
-    fetchPartners({ type: "tour" }).then(p => setTours(p || [])).catch(()=>setTours([]));
-  }, []);
-
-  return (
-    <>
-      <div style={{fontSize:12,fontWeight:700,color:"var(--tx)",marginBottom:8}}>🚶 Spök- & stadsvandringar</div>
-      {tours === null ? (
-        <div style={{fontSize:12,color:"var(--tx3)",padding:"14px 0"}}>Laddar vandringar…</div>
-      ) : tours.length === 0 ? (
-        <div style={{background:"var(--card)",border:"1px dashed var(--b2)",borderRadius:12,padding:"16px",textAlign:"center",marginBottom:9}}>
-          <div style={{fontSize:28,marginBottom:6}}>🚶</div>
-          <div style={{fontSize:12,fontWeight:700,color:"var(--tx)",marginBottom:4}}>Snart hittar du vandringar här</div>
-          <div style={{fontSize:11,color:"var(--tx3)",lineHeight:1.55,marginBottom:12}}>
-            Vi listar bara spök- och stadsvandringar från Spökkartans egna partners — inga externa guideplattformar.
-          </div>
-          <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}>
-            <Btn ch="🌟 Se alla partners" v="ghost" sz="sm" onClick={onBrowsePartners}/>
-            <Btn ch="✨ Driver du vandringar? Bli partner" v="p" sz="sm" onClick={onBecomePartner}/>
-          </div>
-        </div>
-      ) : (
-        <div style={{display:"grid",gap:10,marginBottom:9}}>
-          {tours.map(p => <PartnerCard key={p.id} p={p} onClick={()=>setOpenTour(p)}/>)}
-        </div>
-      )}
-      {openTour && <PartnerDetailModal partner={openTour} user={user} onClose={()=>setOpenTour(null)} allPlaces={allPlaces} onOpenPlace={p=>{setOpenTour(null);onOpenPlace?.(p);}}/>}
-    </>
   );
 }
 
@@ -4100,6 +4360,11 @@ export default function App() {
         {/* HOME */}
         {view==="home"&&(
           <div style={{flex:1,overflowY:"auto"}}>
+            {/* Hero — nylanseringsbild (klick → kartan) */}
+            <div onClick={()=>setView("map")} role="button" aria-label="Utforska Spökkartan" style={{position:"relative",cursor:"pointer",lineHeight:0}}>
+              <img src="/hero-nylansering.jpg" alt="Nylansering av Svenska Spökkartan — tagga en vän och ge dig ut!" loading="eager" style={{width:"100%",display:"block"}} onError={e=>{e.currentTarget.parentElement.style.display="none";}}/>
+              <div style={{position:"absolute",inset:0,background:"linear-gradient(to bottom,transparent 78%,#08070e 100%)"}}/>
+            </div>
             <div style={{background:"linear-gradient(160deg,#110c26,#08070e)",padding:"24px 16px 18px",borderBottom:"1px solid var(--b)"}}>
               <div style={{fontSize:10,fontWeight:700,color:"#a78bfa",letterSpacing:3,textTransform:"uppercase",marginBottom:7}}>👻 Spökkartan</div>
               <h1 style={{fontSize:"clamp(22px,6vw,32px)",fontWeight:800,color:"var(--tx)",lineHeight:1.15,marginBottom:7}}>{(()=>{const w=t("hero_title").split(" "); return <>{w.slice(0,-2).join(" ")} <span className="gt">{w.slice(-2).join(" ")}</span></>;})()}</h1>
@@ -4146,7 +4411,7 @@ export default function App() {
         {/* MAP / SPÖKKARTAN */}
         {view==="map"&&(
           <div style={{flex:1,position:"relative",overflow:"hidden"}}>
-            <SpokMap places={allPlacesMut} onSelect={setMapSel}/>
+            <SpokMap places={allPlacesMut} tier={effectiveTier(user,isPro)} onSelect={setMapSel}/>
             {/* Stats bar */}
             <div style={{position:"absolute",bottom:16,left:12,zIndex:400,background:"rgba(13,11,27,0.93)",border:"1px solid var(--b2)",borderRadius:10,padding:"6px 12px",display:"flex",gap:10,backdropFilter:"blur(10px)"}}>
               <span style={{fontSize:10,color:"#34d399"}}>👻 {allPlacesMut.length} platser</span>
@@ -4175,14 +4440,7 @@ export default function App() {
         {view==="shop"&&(
           <div style={{flex:1,overflowY:"auto",padding:"14px 16px",paddingBottom:80}}>
             <h2 style={{fontSize:15,fontWeight:800,color:"var(--tx)",marginBottom:4}}>🛒 Shop</h2>
-            <p style={{fontSize:11,color:"var(--tx3)",marginBottom:14}}>Vandringar från Spökkartans egna partners · Spökjaktutrustning via Amazon Associates</p>
-            <TourPartnersShopSection
-              user={user}
-              allPlaces={allPlacesMut}
-              onOpenPlace={p=>setReading(p)}
-              onBrowsePartners={()=>setView("partners")}
-              onBecomePartner={()=>user?setShowBecomePartner(true):setAuth("login")}
-            />
+            <p style={{fontSize:11,color:"var(--tx3)",marginBottom:14}}>Spökjaktutrustning via Amazon Associates</p>
             <div style={{fontSize:12,fontWeight:700,color:"var(--tx)",marginTop:16,marginBottom:8}}>🔦 Spökjaktutrustning (Amazon)</div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9}}>
               {[["📡","EMF-mätare","emf+detektor"],["📷","IR-kameror","infraröd+kamera+nattseende"],["🎙️","Röstinspelare","digital+röstinspelare+EVP"],["🔦","UV-ficklampor","uv+ficklampa+395nm"],["🌡️","Termometrar","infraröd+termometer"],["📚","Spöklitteratur","hemsökta+platser+Sverige+bok"]].map(([icon,name,q])=>(
