@@ -8,7 +8,9 @@ ALTER TABLE places ADD COLUMN IF NOT EXISTS translations JSONB;
 
 BEGIN;
 INSERT INTO places (id, name, slug, lat, lng, country, region, type, scary, free, bookable, teaser, description, status, source, translations) VALUES
-('vadstena-spokvandring-01-slott', 'Vadstena slott', 'vadstena-spokvandring-01-slott', 58.4459556, 14.8826411, 'Sverige', 'Östergötland', 'Slott', 3, true, false,
+-- OBS: 'vadstena-slott' finns redan live (09_IMPORT) — vi återanvänder id+slug så
+-- ON CONFLICT BERIKAR den befintliga platsen i stället för att skapa en dubblett.
+('vadstena-slott', 'Vadstena slott', 'vadstena-slott', 58.4459556, 14.8826411, 'Sverige', 'Östergötland', 'Slott', 3, true, false,
  'Renässansborgen där hertig Magnus, Gustav Vasas psykiskt sjuke son, enligt sägnen kastade sig ur fönstret mot en sjöjungfru i vallgraven.',
  'Vadstena slott byggdes från 1545 på Gustav Vasas order. Hit satte kungen sin tredje son, hertig Magnus, som från 1560-talet greps av svår psykisk sjukdom och 1574 fråntogs makten (historiskt belagt). Sägnen berättar att Magnus en vårkväll såg en sjöjungfru stiga ur Vättern och kastade sig ut genom fönstret ner i vallgraven — där vakterna fann honom oskadd och leende. Sägnen lever i folkvisan "Herr Magnus och havstrollet". Modernt rykte: en gestalt i renässanskläder på balkongen i kanonsalen.',
  'published', 'vadstena-spokvandring-research',

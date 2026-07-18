@@ -148,7 +148,8 @@ INSERT INTO places (id, name, slug, lat, lng, country, region, type, scary, free
  'published', 'spokvandring-ostergotland-research',
  '{"en": {"name": "Sya church & the grave fields", "teaser": "Runestones and four Iron Age grave fields around a church by the Svartån — 1500 years of burials in unbroken succession.", "description": "A medieval parish (named 1382), the present church from the 1770s on a 13th-century base. Part of a runestone stands in the churchyard, another by the old road; the parish holds four Iron Age grave fields and ~2 km of stone rows. [Documented monuments; no ghost legend of its own — an atmosphere stop.]"}}'::jsonb),
 
-('odeshog-alvastra-klosterruin', 'Alvastra klosterruin', 'odeshog-alvastra-klosterruin', 58.296599, 14.6584864, 'Sverige', 'Östergötland', 'Kloster', 4, true, false,
+-- OBS: 'alvastra-klosterruin' finns redan live (09_IMPORT) — återanvänt id/slug berikar den.
+('alvastra-klosterruin', 'Alvastra klosterruin', 'alvastra-klosterruin', 58.296599, 14.6584864, 'Sverige', 'Östergötland', 'Kloster', 4, true, false,
  'Cistercienserkloster från 1143 där munkarnas skatt sägs gömd i berget — och där nattvandrare i skymningen tror sig se kåpklädda gestalter.',
  'Grundat 1143 av munkar från Clairvaux på kung Sverkers initiativ; ett av Nordens första cistercienserkloster, rivet efter reformationen (sten till Vadstena slott). Sägnen: munkarna gömde sin skatt i Omberg via ''Murgrönagången'' mot Rödgavel. Modern spökturism rapporterar orgelmusik, kalla stråk och ''latinröster'' vid midnatt. [Klostret belagt; skattsägnen folklore; midnattsspökena sentida rykten.]',
  'published', 'spokvandring-ostergotland-research',

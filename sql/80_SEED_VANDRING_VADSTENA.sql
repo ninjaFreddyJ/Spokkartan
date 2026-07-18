@@ -13,7 +13,7 @@ ON CONFLICT (id) DO UPDATE SET
   teaser = EXCLUDED.teaser, duration_min = EXCLUDED.duration_min, active = EXCLUDED.active;
 
 INSERT INTO tour_places (tour_id, place_id, note) VALUES
-('spokvandring-vadstena', 'vadstena-spokvandring-01-slott',          'Stopp 1 på vandringen'),
+('spokvandring-vadstena', 'vadstena-slott',          'Stopp 1 på vandringen'),
 ('spokvandring-vadstena', 'vadstena-spokvandring-02-radhustorget',   'Stopp 2 på vandringen'),
 ('spokvandring-vadstena', 'vadstena-spokvandring-03-klosterkyrkan',  'Stopp 3 på vandringen'),
 ('spokvandring-vadstena', 'vadstena-spokvandring-04-svarta-nunnan',  'Stopp 4 på vandringen'),
