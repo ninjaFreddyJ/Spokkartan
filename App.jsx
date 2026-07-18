@@ -204,74 +204,66 @@ select option{background:var(--card2)}
 .leaflet-popup-tip,.leaflet-popup-close-button{display:none!important}
 .leaflet-popup-content{margin:0!important;width:auto!important}
 
-/* MARKERS — drop-pin riktig karta-stil */
-.sp-marker{filter:drop-shadow(0 3px 5px rgba(0,0,0,0.35))}
+/* MARKERS — rena, diskreta punktnålar (inga emojis på kartan) */
+.sp-marker{filter:drop-shadow(0 2px 4px rgba(0,0,0,0.3))}
 .sp-pin{
   position:relative;
-  width:32px;height:42px;
+  width:20px;height:20px;
   cursor:pointer;
-  transition:transform 0.18s cubic-bezier(.16,1,.3,1);
 }
-.sp-pin:hover{transform:translateY(-3px) scale(1.08)}
 .sp-pin-body{
-  position:absolute;top:0;left:0;
-  width:32px;height:32px;
-  border-radius:50% 50% 50% 0;
-  transform:rotate(-45deg);
-  box-shadow:inset -2px -3px 6px rgba(0,0,0,0.2),0 0 0 2px #fff;
-  display:flex;align-items:center;justify-content:center;
-}
-.sp-pin-emoji{
-  transform:rotate(45deg);
-  font-size:15px;line-height:1;
-}
-.sp-pin-shadow{
-  position:absolute;
-  bottom:-2px;left:50%;
-  transform:translateX(-50%);
-  width:14px;height:4px;
-  background:rgba(0,0,0,0.3);
+  width:20px;height:20px;
   border-radius:50%;
-  filter:blur(2px);
+  border:2px solid #fff;
+  box-shadow:0 2px 6px rgba(0,0,0,0.35);
+  display:flex;align-items:center;justify-content:center;
+  transition:transform 0.15s;
 }
-.sp-pin.featured .sp-pin-body{box-shadow:inset -2px -3px 6px rgba(0,0,0,0.2),0 0 0 2px #fff,0 0 0 4px rgba(212,175,55,0.6)}
+.sp-pin:hover .sp-pin-body{transform:scale(1.2)}
+.sp-pin-emoji{font-size:9px;line-height:1}
+.sp-pin.featured .sp-pin-body{box-shadow:0 0 0 2px rgba(212,175,55,0.75),0 2px 6px rgba(0,0,0,0.35)}
 .sp-pin.scary-5 .sp-pin-body{background:linear-gradient(135deg,#dc2626,#7c2d12)}
 .sp-pin.scary-4 .sp-pin-body{background:linear-gradient(135deg,#9333ea,#5b21b6)}
 .sp-pin.scary-3 .sp-pin-body{background:linear-gradient(135deg,#7c3aed,#6d28d9)}
 .sp-pin.scary-2 .sp-pin-body{background:linear-gradient(135deg,#a78bfa,#7c3aed)}
 .sp-pin.scary-1 .sp-pin-body{background:linear-gradient(135deg,#c4b5fd,#a78bfa)}
-.sp-pin.bookable .sp-pin-body{box-shadow:inset -2px -3px 6px rgba(0,0,0,0.2),0 0 0 2px #fff,0 0 0 3px rgba(52,211,153,0.7)}
+.sp-pin.bookable .sp-pin-body{box-shadow:0 0 0 2px rgba(52,211,153,0.8),0 2px 6px rgba(0,0,0,0.35)}
 .sp-pin-bookable{
-  position:absolute;top:-4px;right:-4px;
+  position:absolute;top:-5px;right:-5px;
   background:linear-gradient(135deg,#34d399,#059669);
   border-radius:50%;
-  width:18px;height:18px;
+  width:13px;height:13px;
   display:flex;align-items:center;justify-content:center;
-  font-size:9px;
-  border:2px solid #fff;
-  box-shadow:0 2px 4px rgba(0,0,0,0.3);
+  font-size:7px;
+  border:1.5px solid #fff;
+  box-shadow:0 1px 3px rgba(0,0,0,0.3);
 }
-/* Låsta PRO-platser — svarta nålar med guldring (promotar Spökkartan PRO) */
+/* Låsta PRO-platser — svarta punkter med guldring (promotar PRO) */
 .sp-pin.locked .sp-pin-body{
   background:linear-gradient(160deg,#1b1626,#050308);
-  box-shadow:inset -2px -3px 6px rgba(0,0,0,0.5),0 0 0 2px #d4af37,0 3px 8px rgba(0,0,0,0.5);
+  box-shadow:0 0 0 2px #d4af37,0 2px 6px rgba(0,0,0,0.5);
 }
-.sp-pin.locked .sp-pin-emoji{filter:grayscale(1) brightness(1.6)}
 
-/* Stadsbubblor — klicka en stad för att zooma in och se dess platser */
+/* Stadsbubblor — som i promobilden: rena lila cirklar med antal.
+   Klicka en bubbla → zooma in → den delar sig tills platserna syns. */
 .sp-cluster{
   position:relative;
   display:flex;flex-direction:column;align-items:center;justify-content:center;
-  width:54px;height:54px;border-radius:50%;
+  border-radius:50%;
   background:radial-gradient(circle at 30% 28%,#8b5cf6,#5b21b6 75%);
   border:2.5px solid #fff;
   box-shadow:0 5px 16px rgba(91,33,182,0.55);
   color:#fff;cursor:pointer;
   transition:transform 0.15s;
 }
-.sp-cluster:hover{transform:scale(1.08)}
-.sp-cluster-n{font-size:16px;font-weight:800;line-height:1.1}
-.sp-cluster-name{font-size:7px;font-weight:700;letter-spacing:0.2px;max-width:46px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sp-cluster:hover{transform:scale(1.1)}
+.sp-cluster.sm{width:38px;height:38px}
+.sp-cluster.md{width:48px;height:48px}
+.sp-cluster.lg{width:60px;height:60px}
+.sp-cluster-n{font-weight:800;line-height:1.1;font-size:13px}
+.sp-cluster.md .sp-cluster-n{font-size:15px}
+.sp-cluster.lg .sp-cluster-n{font-size:17px}
+.sp-cluster-name{font-size:7px;font-weight:700;letter-spacing:0.2px;max-width:44px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sp-cluster-lock{
   position:absolute;bottom:-7px;
   background:#0b0a14;border:1px solid rgba(212,175,55,0.65);
@@ -408,9 +400,9 @@ function SpokMap({places,tier="free",onSelect}) {
   const [mapMode, setMapMode] = useState("light");
   const [mapStyle, setMapStyle] = useState("voyager"); // voyager | terrain | satellite
   const ref = useRef(null), mapRef = useRef(null), mRefs = useRef({});
-  // Stadsbubblor visas under denna zoom; zooma in (eller klicka en bubbla) → enskilda platser
-  const CLUSTER_ZOOM = 8;
-  const pinLayerRef = useRef(null), clusterLayerRef = useRef(null), zoomHandlerRef = useRef(null);
+  // Avståndsbaserad klustring: närliggande platser blir en bubbla med antal;
+  // bubblor delar sig när man zoomar in tills enskilda platser syns.
+  const markerLayerRef = useRef(null), viewHandlerRef = useRef(null);
 
   // Tile-källor — alla riktiga, tydliga karttjänster
   const TILES = {
@@ -457,85 +449,86 @@ function SpokMap({places,tier="free",onSelect}) {
     layerRef.current.layer.options.subdomains = tile.subdomains;
   }
 
-  // Drop-pin marker — färgad efter scary-faktor, alltid med tema-emoji.
-  // Låsta PRO-platser blir svarta med guldring + 🔒 (betalvägg vid klick).
+  // Ren punktnål — färgad efter scary-faktor, ingen emoji.
+  // Låsta PRO-platser blir svarta med guldring + litet 🔒 (betalvägg vid klick).
   function mkIcon(p) {
     const scary = Math.max(1, Math.min(5, p.scary || 3));
     const featured = p.featured ? " featured" : "";
     const bookable = (p.bookable && p.booking_url) ? " bookable" : "";
     const locked = placeLocked(p, tier) ? " locked" : "";
-    const emoji = locked ? "🔒" : (TYPE_ICON[p.type] || FLAG[p.country] || "👻");
     const html = `
       <div class="sp-pin scary-${scary}${featured}${bookable}${locked}">
-        <div class="sp-pin-body"><span class="sp-pin-emoji">${emoji}</span></div>
-        <div class="sp-pin-shadow"></div>
+        <div class="sp-pin-body">${locked?'<span class="sp-pin-emoji">🔒</span>':''}</div>
         ${(p.bookable && p.booking_url) ? '<div class="sp-pin-bookable">🏨</div>' : ''}
       </div>`;
     return window.L.divIcon({
       className:"sp-marker",
       html,
-      iconSize:[32,42],
-      iconAnchor:[16,40],
-      popupAnchor:[0,-34]
+      iconSize:[20,20],
+      iconAnchor:[10,10],
+      popupAnchor:[0,-12]
     });
   }
 
-  // Bygg både stads-lagret (bubblor med antal) och plats-lagret (nålar).
-  // Vilket som visas styrs av zoomnivån: utzoomat = städer, inzoomat = platser.
-  function buildLayers(map) {
+  // Rita om kartlagret för aktuell vy: platser inom ~60 px grupperas till en
+  // bubbla (med antal + stadsnamn när alla ligger i samma region); klick på
+  // bubblan zoomar in så den delar sig — tills enskilda platser syns som nålar.
+  function renderView(map) {
     const L = window.L;
-    if (pinLayerRef.current) { map.removeLayer(pinLayerRef.current); pinLayerRef.current = null; }
-    if (clusterLayerRef.current) { map.removeLayer(clusterLayerRef.current); clusterLayerRef.current = null; }
-    if (zoomHandlerRef.current) { map.off("zoomend", zoomHandlerRef.current); zoomHandlerRef.current = null; }
+    if (!markerLayerRef.current) { markerLayerRef.current = L.layerGroup().addTo(map); }
+    const layer = markerLayerRef.current;
+    layer.clearLayers();
 
+    const zoom = map.getZoom();
+    const maxZ = (layerRef.current?.layer?.options?.maxZoom) || 18;
     const valid = places.filter(p=>p.lat&&p.lng);
-    const pins = L.layerGroup();
+    const R = 60; // klusterradie i pixlar
+
+    // Girig pixel-klustring vid aktuell zoom
+    const clusters = [];
+    valid.forEach(p=>{
+      const pt = map.project([p.lat,p.lng], zoom);
+      let c = clusters.find(c=>Math.hypot(c.x-pt.x, c.y-pt.y) < R);
+      if (!c) { c = { x:pt.x, y:pt.y, items:[] }; clusters.push(c); }
+      c.items.push(p);
+    });
+
+    const esc = s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
     mRefs.current = {};
-    valid.forEach(p=>{
-      const m = L.marker([p.lat,p.lng], {icon: mkIcon(p), riseOnHover:true}).on("click", ()=>onSelect(p));
-      m.addTo(pins);
-      mRefs.current[p.id] = m;
-    });
-
-    // Stadsbubblor: gruppera per region/stad (fallback land)
-    const clusters = L.layerGroup();
-    const groups = {};
-    valid.forEach(p=>{
-      const key = `${p.region||p.country||"Övrigt"}|${p.country||""}`;
-      (groups[key] = groups[key] || []).push(p);
-    });
-    Object.entries(groups).forEach(([key, arr])=>{
-      const name = key.split("|")[0];
-      const lat = arr.reduce((s,p)=>s+p.lat,0)/arr.length;
-      const lng = arr.reduce((s,p)=>s+p.lng,0)/arr.length;
-      const lockedN = arr.filter(p=>placeLocked(p, tier)).length;
-      const esc = s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
-      const html = `
-        <div class="sp-cluster" title="${esc(name)} — ${arr.length} platser. Klicka för att utforska.">
-          <div class="sp-cluster-n">${arr.length}</div>
-          <div class="sp-cluster-name">${esc(name)}</div>
-          ${lockedN>0?`<div class="sp-cluster-lock">🔒 ${lockedN} PRO</div>`:""}
-        </div>`;
-      L.marker([lat,lng], {icon: L.divIcon({className:"sp-marker", html, iconSize:[54,54], iconAnchor:[27,27]})})
-        .on("click", ()=>map.flyTo([lat,lng], CLUSTER_ZOOM+1, {duration:0.8}))
-        .addTo(clusters);
-    });
-
-    pinLayerRef.current = pins;
-    clusterLayerRef.current = clusters;
-    const sync = ()=>{
-      const cityView = map.getZoom() < CLUSTER_ZOOM;
-      if (cityView) {
-        if (!map.hasLayer(clusters)) map.addLayer(clusters);
-        if (map.hasLayer(pins)) map.removeLayer(pins);
-      } else {
-        if (!map.hasLayer(pins)) map.addLayer(pins);
-        if (map.hasLayer(clusters)) map.removeLayer(clusters);
+    clusters.forEach(c=>{
+      if (c.items.length === 1) {
+        const p = c.items[0];
+        const m = L.marker([p.lat,p.lng], {icon: mkIcon(p), riseOnHover:true}).on("click", ()=>onSelect(p));
+        m.addTo(layer);
+        mRefs.current[p.id] = m;
+        return;
       }
-    };
-    zoomHandlerRef.current = sync;
-    map.on("zoomend", sync);
-    sync();
+      const lat = c.items.reduce((s,p)=>s+p.lat,0)/c.items.length;
+      const lng = c.items.reduce((s,p)=>s+p.lng,0)/c.items.length;
+      const n = c.items.length;
+      const lockedN = c.items.filter(p=>placeLocked(p, tier)).length;
+      const regions = new Set(c.items.map(p=>p.region||p.country||""));
+      const name = regions.size===1 ? [...regions][0] : "";
+      const size = n>=40?"lg":n>=10?"md":"sm";
+      const html = `
+        <div class="sp-cluster ${size}" title="${n} platser${name?` i ${esc(name)}`:""} — klicka för att utforska">
+          <div class="sp-cluster-n">${n}</div>
+          ${name?`<div class="sp-cluster-name">${esc(name)}</div>`:""}
+          ${lockedN>0?`<div class="sp-cluster-lock">🔒 ${lockedN}</div>`:""}
+        </div>`;
+      const px = size==="lg"?60:size==="md"?48:38;
+      L.marker([lat,lng], {icon: L.divIcon({className:"sp-marker", html, iconSize:[px,px], iconAnchor:[px/2,px/2]})})
+        .on("click", ()=>map.flyTo([lat,lng], Math.min(zoom+2, maxZ), {duration:0.7}))
+        .addTo(layer);
+    });
+  }
+
+  function buildLayers(map) {
+    if (viewHandlerRef.current) { map.off("zoomend moveend", viewHandlerRef.current); }
+    const handler = ()=>renderView(map);
+    viewHandlerRef.current = handler;
+    map.on("zoomend moveend", handler);
+    renderView(map);
   }
 
   function init(){
