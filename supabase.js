@@ -30,6 +30,7 @@ function normalizePlace(row) {
   const bookingUrl = isExternalGuideUrl(row.booking_url) ? '' : (row.booking_url || '');
   return {
     id: row.id,
+    slug: row.slug || '',
     name: row.name,
     country: row.country,
     region: row.region || '',
@@ -53,8 +54,14 @@ function normalizePlace(row) {
   };
 }
 
+// Lätta kolumner för karta/lista — allt utom de tunga fälten (description,
+// images). Dessa lazy-laddas per plats i Reader via fetchPlaceDetail. Kapar
+// payloaden dramatiskt när places-tabellen är stor (~18k rader).
+const PLACE_LIST_COLUMNS =
+  'id,slug,name,country,region,type,lat,lng,scary,free,featured,is_new,bookable,booking_url,img,img_credit,img_author,teaser,status,min_tier';
+
 export async function fetchPlaces({ includeDrafts = false } = {}) {
-  let query = supabase.from('places').select('*');
+  let query = supabase.from('places').select(PLACE_LIST_COLUMNS);
   if (!includeDrafts) query = query.eq('status', 'published');
   const { data, error } = await query;
   if (error) {
@@ -62,6 +69,23 @@ export async function fetchPlaces({ includeDrafts = false } = {}) {
     return [];
   }
   return (data || []).map(normalizePlace);
+}
+
+// Hämtar de tunga fälten för EN plats (öppnad i Reader). Prerender/SEO hämtar
+// beskrivningen separat, så LLM-crawling påverkas inte av lazy-loaden.
+export async function fetchPlaceDetail(idOrSlug) {
+  if (!idOrSlug) return null;
+  const { data, error } = await supabase
+    .from('places')
+    .select('id,slug,description,images')
+    .or(`id.eq.${idOrSlug},slug.eq.${idOrSlug}`)
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    console.error('[Spokkartan] fetchPlaceDetail fel:', error.message);
+    return null;
+  }
+  return data || null;
 }
 
 export function subscribeToPlaces(callback) {
