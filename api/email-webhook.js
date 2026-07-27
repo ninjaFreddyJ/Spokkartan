@@ -5,6 +5,7 @@
 // Env: VITE_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY + RESEND_WEBHOOK_SECRET
 
 import { createClient } from '@supabase/supabase-js';
+import { notifyDiscord } from '../lib/notify/discord.js';
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
 const SERVICE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -43,5 +44,17 @@ export default async function handler(req, res) {
       await supabase.from('nurture_state').update({ status: 'bounced', unsubscribed: true, updated_at: now }).eq('id', ns.id);
     }
   }
+
+  // Larma i Discord vid studs/klagomål — tidig varning på deliverability.
+  if (kind === 'bounce' || kind === 'complaint') {
+    await notifyDiscord('alerts', {
+      title: kind === 'complaint' ? '⚠️ Spam-klagomål' : '⚠️ Studsat mail',
+      description: kind === 'complaint'
+        ? 'En mottagare markerade utskicket som skräppost. Håll koll på klagomålsgraden.'
+        : 'Ett mail studsade och kontakten pausades automatiskt.',
+      fields: [{ name: 'Mottagare', value: email, inline: true }],
+    }).catch(() => {});
+  }
+
   res.status(200).json({ ok: true, kind });
 }
